@@ -1,0 +1,18 @@
+[package]
+name = "OneLiner"
+version = "0.1.0"
+edition = "2021"
+description = "One-line Rust model binding macro with pluggable backends"
+license = "Apache-2.0 WITH LLVM-exception"
+
+[lib]
+name = "OneLiner"
+
+[features]
+default = ["std", "iree-runtime"]
+std = ["alloc"]
+alloc = []
+iree-runtime = []
+
+[dependencies]
+oneliner-macro = { path = "../oneliner-macro" }

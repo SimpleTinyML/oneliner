@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "oneliner",
+    "oneliner-macro",
+]
+exclude = [
+    "examples/ariel-os-iree",
+]
+resolver = "2"
