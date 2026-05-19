@@ -22,3 +22,7 @@ pub use iree::{
     iree_hal_executable_library_query_fn_t, iree_hal_executable_workgroup_state_v0_t,
     iree_hal_processor_v0_t, try_dispatch, DispatchFn,
 };
+
+#[cfg(feature = "iree-runtime")]
+pub use aligned::{Aligned, A2, A4, A16, A32, A64};
+pub type AlignedType = A64;

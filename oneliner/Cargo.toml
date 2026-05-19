@@ -16,3 +16,6 @@ iree-runtime = []
 
 [dependencies]
 oneliner-macro = { path = "../oneliner-macro" }
+defmt = { version = "1.0.0" }
+log = { version = "0.4.26"}
+aligned ={ version = "0.4.3" }

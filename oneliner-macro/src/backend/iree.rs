@@ -82,6 +82,14 @@ fn expand_iree_items(input_struct: syn::ItemStruct, artifacts: IreeArtifacts) ->
         .map(|index| format_ident!("cmd_execute_{}", index))
         .collect::<Vec<_>>();
 
+    let model_stem = artifacts
+        .model_path
+        .file_stem()
+        .and_then(OsStr::to_str).unwrap();
+
+    let query_fn_name = Ident::new(parse_iree_query_function_name_from_object_header(&artifacts.object_path)
+        .unwrap_or_else(|_| model_stem.to_string() + "_linked_library_query").as_str(), proc_macro2::Span::call_site());
+
     let input_write = if let Some(binding) = &artifacts.input {
         let ident = Ident::new(&binding.static_ident, proc_macro2::Span::call_site());
         quote! {
@@ -116,7 +124,11 @@ fn expand_iree_items(input_struct: syn::ItemStruct, artifacts: IreeArtifacts) ->
 
         #[allow(improper_ctypes, non_camel_case_types, non_snake_case, non_upper_case_globals)]
         #[link(name = #object_path, kind = "static", modifiers = "+verbatim")]
-        unsafe extern "C" {}
+        unsafe extern "C" {
+            // The actual query function is looked up dynamically from the object header
+            // and may not be directly callable, but this declaration allows Rust to link
+            // the object file without undefined symbol errors.
+        }
 
         #[allow(
             dead_code,
@@ -135,9 +147,20 @@ fn expand_iree_items(input_struct: syn::ItemStruct, artifacts: IreeArtifacts) ->
                 concurrent, dispatch, dispatch_fn_from_library, fill, Access, TensorRange,
                 iree_hal_executable_dispatch_state_v0_t, iree_hal_executable_environment_v0_t,
                 iree_hal_executable_library_header_t, iree_hal_executable_workgroup_state_v0_t,
-                TensorRef,
+                iree_hal_executable_library_query_fn_t, 
+                TensorRef, Aligned, AlignedType,
             };
             use ::OneLiner::tensor_ref;
+
+            unsafe extern "C" {
+                pub unsafe fn #query_fn_name(
+                    max_version: u32,
+                    environment: *const iree_hal_executable_environment_v0_t,
+                ) -> *const *const iree_hal_executable_library_header_t;
+            }
+
+            static query_fn_ptr: iree_hal_executable_library_query_fn_t = #query_fn_name;
+
             include!(#flow_rs);
         }
 
@@ -173,6 +196,58 @@ fn expand_iree_items(input_struct: syn::ItemStruct, artifacts: IreeArtifacts) ->
             }
         }
     }
+}
+
+fn parse_iree_query_function_name_from_object_header(object_path: &Path) -> syn::Result<String> {
+    let header_path = object_path.with_extension("h");
+    validate_file(&header_path, "IREE object header")?;
+
+    let header_text = fs::read_to_string(&header_path).map_err(to_syn_error)?;
+
+    header_text
+        .lines()
+        .find_map(|raw_line| {
+            let line = raw_line.trim();
+
+            // Skip empty lines and comments such as:
+            // //  - Query library from main_dispatch_0_library_query()<<
+            if line.is_empty() || line.starts_with("//") {
+                return None;
+            }
+
+            if !line.contains("_library_query") || !line.contains('(') {
+                return None;
+            }
+
+            let before_paren = line.split('(').next()?.trim();
+
+            // IREE generated header usually has the function name alone:
+            // main_dispatch_0_library_query(
+            //
+            // But this also handles the case where return type and function name
+            // are on the same line.
+            let function_name = before_paren
+                .split_whitespace()
+                .last()?
+                .trim_start_matches('*')
+                .trim_end_matches('*')
+                .trim();
+
+            if function_name.ends_with("_library_query") {
+                Some(function_name.to_string())
+            } else {
+                None
+            }
+        })
+        .ok_or_else(|| {
+            syn::Error::new(
+                proc_macro2::Span::call_site(),
+                format!(
+                    "failed to parse IREE query function name from {}",
+                    header_path.display()
+                ),
+            )
+        })
 }
 
 /// Builds all compile-time artifacts needed by the IREE backend.
@@ -312,15 +387,16 @@ fn run_iree_compile(
         compile_input_path.display().to_string(),
         "--iree-hal-target-device=local".to_string(),
         "--iree-hal-local-target-device-backends=llvm-cpu".to_string(),
+        // "--iree-opt-level=O2".to_string(),
         format!("--iree-llvmcpu-target-triple={target}"),
         format!("--iree-llvmcpu-target-cpu={target_cpu}"),
         format!("--iree-llvmcpu-target-cpu-features={cpu_features}"),
-        "--align-all-functions=4".to_string(),
-        "--align-all-blocks=4".to_string(),
-        "--iree-llvmcpu-stack-allocation-limit=4096".to_string(),
+        // "--align-all-functions=4".to_string(),
+        // "--align-all-blocks=4".to_string(),
+        // "--iree-llvmcpu-stack-allocation-limit=4096".to_string(),
         "--iree-stream-partitioning-favor=min-peak-memory".to_string(),
-        "--iree-vm-bytecode-module-strip-source-map=true".to_string(),
-        "--iree-vm-emit-polyglot-zip=false".to_string(),
+        // "--iree-vm-bytecode-module-strip-source-map=true".to_string(),
+        // "--iree-vm-emit-polyglot-zip=false".to_string(),
         "--iree-llvmcpu-link-embedded=false".to_string(),
         "--iree-llvmcpu-link-static".to_string(),
         format!(

@@ -12,6 +12,12 @@ The model is `models/abs2.mlir`:
 - operation: `math.absf`
 - expected validation: `[-1.0, 3.0] -> [1.0, 3.0]`
 
+The MCUNet visual wake words example is `models/mcunet_10fps_vww.mlir`:
+
+- input: `tensor<1x64x64x3xi8>` / 12,288 bytes
+- output: `tensor<1x2xi8>` / 2 bytes
+- expected validation: all-zero input image -> model output bytes
+
 ## Build
 
 From this directory:
@@ -20,10 +26,22 @@ From this directory:
 conda run -n ariel_ml laze build -b native
 ```
 
+To build only the MCUNet example:
+
+```sh
+conda run -n ariel_ml laze build -b native oneliner-ariel-os-iree-mcunet
+```
+
 To run the native board:
 
 ```sh
-conda run -n ariel_ml laze build -b native run
+conda run -n ariel_ml laze build -b native run --bin oneliner-ariel-os-iree
+```
+
+To run the MCUNet native board:
+
+```sh
+conda run -n ariel_ml laze build -b native -a oneliner-ariel-os-iree-mcunet run --bin oneliner-ariel-os-iree-mcunet
 ```
 
 This example tracks Ariel OS `v0.4.0`, the latest release tag available when it

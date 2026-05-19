@@ -1,4 +1,5 @@
 use super::{Error, Prediction, Result};
+use super::{Aligned, AlignedType};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Access {
@@ -52,6 +53,21 @@ impl TensorSource for TensorRef {
     /// Safety: `ptr` must point to an initialized `TensorRef`.
     unsafe fn tensor_ref_from_raw(ptr: *const Self) -> TensorRef {
         unsafe { core::ptr::read(ptr) }
+    }
+}
+
+impl<const N: usize> TensorSource for Aligned<AlignedType, [u8; N]> {
+    /// Treats an aligned static byte array as a tensor buffer.
+    ///
+    /// Input: pointer to `Aligned<A32, [u8; N]>`.
+    /// Output: `TensorRef` with the array pointer and fixed length `N`.
+    ///
+    /// Safety: `ptr` must point to a valid aligned byte array.
+    unsafe fn tensor_ref_from_raw(ptr: *const Self) -> TensorRef {
+        TensorRef {
+            ptr: ptr as *mut u8,
+            len: N,
+        }
     }
 }
 

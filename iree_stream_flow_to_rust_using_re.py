@@ -519,11 +519,10 @@ def parse_dispatch(head: str, body: str, constants: dict[str, int], func_workloa
         params, param_values = parse_params(tail[1:close_pos], constants)
     executable, function = split_symbol_ref(callee)
     workload = tuple()
-    ordinal = 0
+    ordinal = int(executable.lstrip("main_dispatch_")) if executable.startswith("main_dispatch_") else 0
     for item in func_workloads:
         if item["function"] == function:
             workload = item["workload"]
-            ordinal = item["ordinal"]
             break
 
     return DispatchCall(
@@ -650,8 +649,6 @@ def parse_func_workloads(mlir_text: str):
 
     for match in export_pattern.finditer(mlir_text):
         func_name = match.group(1)
-        ordinal_match = re.search(r"ordinal\((\d+)\)", match.group("head"))
-        ordinal = int(ordinal_match.group(1)) if ordinal_match else len(results)
         start_idx = match.end() - 1  # Points at the opening brace.
 
         # Use brace counting to find the full export body.
@@ -690,10 +687,29 @@ def parse_func_workloads(mlir_text: str):
 
         results.append({
             "function": func_name,
-            "ordinal": ordinal,
             "workload": workload
         })
     return results
+
+
+def iter_dispatches(commands: list[Any]) -> Any:
+    for command in commands:
+        if isinstance(command, DispatchCall):
+            yield command
+        elif isinstance(command, ConcurrentCommand):
+            yield from iter_dispatches(command.commands)
+
+def align_dispatch_ordinals_with_nums(commands: list[Any]) -> set[int]:
+    original_ordinals = set()
+    for command in iter_dispatches(commands):
+        if isinstance(command, DispatchCall):
+            original_ordinals.add(command.ordinal)
+    sorted_ordinals = sorted(original_ordinals)
+    ordinal_map = {ordinal: index for index, ordinal in enumerate(sorted_ordinals)}
+    for command in iter_dispatches(commands):
+        if isinstance(command, DispatchCall):
+            command.ordinal = ordinal_map[command.ordinal]
+    return original_ordinals
 
 
 def parse_cmd_executes(text: str) -> tuple[list[CmdExecute], dict[str, ConstantBlob]]:
@@ -728,6 +744,8 @@ def parse_cmd_executes(text: str) -> tuple[list[CmdExecute], dict[str, ConstantB
         for command in commands:
             apply_tensor_names(command, bindings_by_arg)
 
+        align_dispatch_ordinals_with_nums(commands)
+
         executes.append(
             CmdExecute(
                 name=f"cmd_execute_{len(executes)}",
@@ -755,19 +773,19 @@ def render_resource_static(binding: ResourceBinding, constant_blobs: dict[str, C
     if binding.role == "constant":
         if binding.constant_name and binding.constant_name in constant_blobs:
             blob = constant_blobs[binding.constant_name]
-            lines = [f"pub static {name}: [u8; {blob.size}] = ["]
+            lines = [f"pub static {name}: Aligned<AlignedType,[u8; {blob.size}]> = Aligned(["]
             lines.extend(bytes_to_rust_array(blob.data))
-            lines.append("];")
+            lines.append("]);")
             return lines
         if binding.size is not None:
-            return [f"pub static {name}: [u8; {binding.size}] = [0; {binding.size}]; // constant bytes unavailable"]
+            return [f"pub static {name}: Aligned<AlignedType, [u8; {binding.size}]> = Aligned([0; {binding.size}]); // constant bytes unavailable"]
         return [f"// constant {binding.arg} size {binding.size_expr} could not be materialized"]
 
     if binding.role == "input":
         return [f"pub static mut {name}: TensorRef = TensorRef {{ ptr: core::ptr::null_mut(), len: 0 }};"]
 
     if binding.size is not None:
-        return [f"pub static mut {name}: [u8; {binding.size}] = [0; {binding.size}];"]
+        return [f"pub static mut {name}: Aligned<AlignedType, [u8; {binding.size}]> = Aligned([0; {binding.size}]);"]
     return [f"// static mut {name}: size expression {binding.size_expr} could not be resolved"]
 
 
@@ -793,10 +811,11 @@ def render_command(command: Any, indent: str) -> list[str]:
         unresolved = [expr for expr, value in zip(command.params, command.param_values) if value is None]
         unresolved.extend("workload" for value in command.workload if value is None)
         suffix = f" // unresolved: {', '.join(unresolved)}" if unresolved else ""
-        query = f"{command.executable}_library_query"
+        # query = f"{command.executable}_library_query"
         out.append(
-            f"{indent}dispatch(dispatch_fn_from_library({query}, {command.ordinal}), &[{params}], &[{workload}], &[{suffix}"
+            f"{indent}dispatch(dispatch_fn_from_library(query_fn_ptr, {command.ordinal}), &[{params}], &[{workload}], &[{suffix}"
         )
+        # out.append(f"{indent}dispatch(Some({command.function}), &[{params}], &[{workload}], &[{suffix}")
         for item in command.ranges:
             rendered, range_suffix = render_tensor_range(item)
             out.append(f"{indent}    {rendered},{range_suffix}")
@@ -813,31 +832,34 @@ def render_command(command: Any, indent: str) -> list[str]:
         out.append(f"{indent}}});")
     return out
 
-def iter_dispatch_commands(commands: list[Any]):
-    for command in commands:
-        if isinstance(command, DispatchCall):
-            yield command
-        elif isinstance(command, ConcurrentCommand):
-            yield from iter_dispatch_commands(command.commands)
+# def render_extern_dispatch_func(cmd: DispatchCall) -> list[str]:
+#     return [
+#         f'unsafe extern "C" {{',
+#         f'    pub unsafe fn {cmd.function}(',
+#         f'        environment: *const iree_hal_executable_environment_v0_t,',
+#         f'        dispatch_state: *const iree_hal_executable_dispatch_state_v0_t,',
+#         f'        workgroup_state: *const iree_hal_executable_workgroup_state_v0_t,',
+#         f'    ) -> i32;',
+#         f'}}',
+#     ]
 
-def render_extern_c_dispatch_func(executes: list[CmdExecute]) -> list[str]:
-    out = ["// import IREE static-library query functions.",]
-    emitted: set[str] = set()
-    for execute in executes:
-        for cmd in iter_dispatch_commands(execute.commands):
-            query = f"{cmd.executable}_library_query"
-            if query in emitted:
-                continue
-            emitted.add(query)
-            out.append(
-                f'unsafe extern "C" {{\n'
-                f'    pub unsafe fn {query}(\n'
-                f'        max_version: u32,\n'
-                f'        environment: *const iree_hal_executable_environment_v0_t,\n'
-                f'    ) -> *const *const iree_hal_executable_library_header_t;\n'
-                f'}}'
-            )
-    return out
+# def render_extern_c_dispatch_func(executes: list[CmdExecute]) -> list[str]:
+#     out = ["// import C dispatch functions.",]
+#     cmd_functions = set()
+#     for execute in executes:
+#         for cmd in execute.commands:
+#             if isinstance(cmd, DispatchCall):
+#                 if cmd.function not in cmd_functions:
+#                     cmd_functions.add(cmd.function)
+#                     out.extend(render_extern_dispatch_func(cmd))
+#             if isinstance(cmd, ConcurrentCommand):
+#                 for child in cmd.commands:
+#                     if isinstance(child, DispatchCall):
+#                         if child.function not in cmd_functions:
+#                             cmd_functions.add(child.function)
+#                             out.extend(render_extern_dispatch_func(child))
+#     return out
+
 
 def render_rust(executes: list[CmdExecute], constant_blobs: dict[str, ConstantBlob]) -> str:
     out: list[str] = [
@@ -846,7 +868,7 @@ def render_rust(executes: list[CmdExecute], constant_blobs: dict[str, ConstantBl
         "",
     ]
     
-    out.extend(render_extern_c_dispatch_func(executes))
+    # out.extend(render_extern_c_dispatch_func(executes))
     emitted: set[str] = set()
     for execute in executes:
         for binding in execute.resources:

@@ -4,7 +4,7 @@ use core::ffi::c_void;
 
 use super::buffer::clipped_len;
 use super::{Error, Result, TensorRange};
-
+use log;
 pub const MAX_BINDINGS: usize = 32;
 
 pub type iree_hal_executable_import_v0_t =
@@ -196,6 +196,20 @@ pub fn dispatch_fn_from_library(
         return None;
     }
 
+    // for index in 0..exports.count as usize {
+    //     let func_ptr = unsafe { *exports.ptrs.add(index) };
+    //     let name_ptr = unsafe { *exports.names.add(index) };
+    //     let name = if !name_ptr.is_null() {
+    //         unsafe { core::ffi::CStr::from_ptr(name_ptr as *const i8) }
+    //             .to_str()
+    //             .unwrap_or("<invalid utf-8>")
+    //     } else {
+    //         "<null>"
+    //     };
+    //     log::info!("Export {}: name = {}, ptr = {}", index, name, func_ptr as usize);
+    // }
+
+    unsafe {log::debug!("Resolved dispatch function for ordinal {} at address {:#x}", ordinal, *exports.ptrs.add(ordinal) as usize)};
     Some(unsafe { *exports.ptrs.add(ordinal) })
 }
 
@@ -240,6 +254,7 @@ pub fn try_dispatch(
             binding_ptrs[index] = range.tensor.ptr.add(range.offset) as *mut c_void;
         }
         binding_lengths[index] = len;
+        log::debug!("Binding {}: ptr = {:#x}, length = {}, align16 = {}", index, binding_ptrs[index] as usize, binding_lengths[index], (binding_ptrs[index] as usize) % 16);
     }
 
     let environment = iree_hal_executable_environment_v0_t {
@@ -267,7 +282,7 @@ pub fn try_dispatch(
         binding_ptrs: binding_ptrs.as_ptr(),
         binding_lengths: binding_lengths.as_ptr(),
     };
-
+    
     for z in 0..workload_z {
         for y in 0..workload_y {
             for x in 0..workload_x {
@@ -280,6 +295,7 @@ pub fn try_dispatch(
                     local_memory: core::ptr::null_mut(),
                     local_memory_size: 0,
                 };
+                log::debug!("Dispatching workgroup (x={}, y={}, z={})", x, y, z);
                 let status = unsafe { function(&environment, &dispatch_state, &workgroup_state) };
                 if status != 0 {
                     return Err(Error::DispatchFailed { status });
