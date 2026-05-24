@@ -3,7 +3,6 @@ name = "oneliner-macro"
 version = "0.1.0"
 edition = "2021"
 description = "Attribute macro implementation for OneLiner"
-license = "Apache-2.0 WITH LLVM-exception"
 
 [lib]
 name = "oneliner_macro"
