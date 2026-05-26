@@ -1,5 +1,6 @@
 mod iree;
 mod microflow;
+mod llvm_target_info;
 
 use std::path::PathBuf;
 use syn::ItemStruct;

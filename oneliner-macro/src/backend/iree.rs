@@ -5,8 +5,10 @@ use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use std::ptr::null;
 use syn::{Ident, LitStr};
 use walkdir::WalkDir;
+use super::llvm_target_info::llvm_target_info_from_rust_triple;
 
 #[derive(Debug)]
 struct IreeArtifacts {
@@ -380,17 +382,36 @@ fn run_iree_compile(
 ) -> syn::Result<()> {
     let compiler = env_first(&["ONELINER_IREE_COMPILE", "IREE_COMPILE"])
         .unwrap_or_else(|| "iree-compile".to_string());
-    let target = target_triple();
-    let target_cpu = iree_target_cpu();
-    let cpu_features = iree_cpu_features();
+    
+    let rust_target_triple = rust_target_triple();
+    let llvm_target_info = llvm_target_info_from_rust_triple(&rust_target_triple)
+        .map_err(|error| syn::Error::new(proc_macro2::Span::call_site(), format!("failed to get LLVM target info for triple {rust_target_triple}: {error}")))?; 
+    
+    let llvm_triple = &llvm_target_info.llvm_triple;
+    let target_cpu = &llvm_target_info.cpu;
+    let cpu_features = &llvm_target_info.features;
+
+    // println!("Using LLVM triple: {llvm_triple}");
+    // println!("Using target CPU: {}", target_cpu.as_deref().unwrap_or("<empty>"));
+    // println!("Using target CPU features: {}", cpu_features.as_deref().unwrap_or("<empty>"));
     let mut args = vec![
         compile_input_path.display().to_string(),
         "--iree-hal-target-device=local".to_string(),
         "--iree-hal-local-target-device-backends=llvm-cpu".to_string(),
         // "--iree-opt-level=O2".to_string(),
-        format!("--iree-llvmcpu-target-triple={target}"),
-        format!("--iree-llvmcpu-target-cpu={target_cpu}"),
-        format!("--iree-llvmcpu-target-cpu-features={cpu_features}"),
+        format!("--iree-llvmcpu-target-triple={llvm_triple}"),
+        {
+            match target_cpu {
+                Some(cpu) if !cpu.is_empty() => format!("--iree-llvmcpu-target-cpu={cpu}"),
+                _ =>  String::new(),
+            }
+        },
+        {
+            match cpu_features {
+                Some(features) if !features.is_empty() => format!("--iree-llvmcpu-target-cpu-features={features}"),
+                _ => String::new(),
+            }
+        },
         // "--align-all-functions=4".to_string(),
         // "--align-all-blocks=4".to_string(),
         // "--iree-llvmcpu-stack-allocation-limit=4096".to_string(),
@@ -408,11 +429,15 @@ fn run_iree_compile(
         "-o".to_string(),
         vmfb_path.display().to_string(),
     ];
+    
     if let Some(extra_args) =
         env_first(&["ONELINER_IREE_COMPILE_FLAGS", "IREE_MODEL_COMPILE_FLAGS"])
     {
         args.extend(extra_args.split_whitespace().map(str::to_string));
     }
+
+    args.retain(| x| !x.is_empty());
+
     run_command(Command::new(compiler).args(args), "iree-compile")
 }
 
@@ -546,13 +571,13 @@ fn find_stream_flow_ir(root: &Path) -> Option<PathBuf> {
     }) {
         return Some(path.clone());
     }
-
+    // TODO
     let mut candidates = files
         .iter()
         .filter(|path| {
             path.file_name()
                 .and_then(OsStr::to_str)
-                .map(|name| name.contains("iree-hal-prune-executables"))
+                .map(|name| name.contains("iree-hal-prune-executables")) 
                 .unwrap_or(false)
         })
         .filter(|path| is_converter_compatible_ir(path))
@@ -609,54 +634,10 @@ fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
 ///
 /// Input: environment variables or Cargo `TARGET`.
 /// Output: target triple string.
-fn target_triple() -> String {
-    env_first(&["ONELINER_IREE_TARGET_TRIPLE", "IREE_MODEL_TARGET_TRIPLE"])
-        .unwrap_or_else(|| std::env::var("TARGET").unwrap_or_default())
-}
-
-/// Resolves the host triple used as a fallback for CPU detection.
-///
-/// Input: Cargo `HOST` environment variable.
-/// Output: host triple string or empty string.
-fn host_triple() -> String {
-    std::env::var("HOST").unwrap_or_default()
-}
-
-/// Resolves the LLVM CPU name passed to IREE.
-///
-/// Input: explicit environment override or target/host architecture.
-/// Output: IREE LLVM CPU string.
-fn iree_target_cpu() -> String {
-    env_first(&["ONELINER_IREE_TARGET_CPU", "IREE_MODEL_TARGET_CPU"]).unwrap_or_else(|| {
-        if target_triple() == host_triple() {
-            "host".to_string()
-        } else {
-            "generic".to_string()
-        }
-    })
-}
-
-/// Resolves LLVM CPU feature flags passed to IREE.
-///
-/// Input: explicit environment override or Cargo `CARGO_CFG_TARGET_FEATURE`.
-/// Output: comma-separated `+feature` list excluding `crt-static`.
-fn iree_cpu_features() -> String {
-    if let Some(features) = env_first(&["ONELINER_IREE_CPU_FEATURES", "IREE_MODEL_CPU_FEATURES"]) {
-        return features;
-    }
-    std::env::var("CARGO_CFG_TARGET_FEATURE")
-        .ok()
-        .map(|features| {
-            features
-                .split(',')
-                .map(str::trim)
-                .filter(|feature| !feature.is_empty())
-                .filter(|feature| *feature != "crt-static")
-                .map(|feature| format!("+{feature}"))
-                .collect::<Vec<_>>()
-                .join(",")
-        })
-        .unwrap_or_default()
+fn rust_target_triple() -> String {
+    //TODO: temporary fix to get target triple, only tested under ariel-os.
+    let env_target = std::env::var("CARGO_BUILD_TARGET").unwrap();
+    env_target
 }
 
 /// Converts a filesystem path into a Rust string literal for generated code.
