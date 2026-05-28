@@ -290,7 +290,7 @@ fn build_iree_artifacts(struct_ident: &Ident, model_path: PathBuf) -> syn::Resul
         .unwrap_or(false)
     {
         let import_mlir_path = artifact_dir.join(format!("{model_stem}.tosa.mlir"));
-        run_iree_import_tflite(&model_path, &import_mlir_path)?;
+        run_tosa_converter_for_tflite(&model_path, &import_mlir_path)?;
         validate_file(&import_mlir_path, "IREE imported TFLite MLIR")?;
         import_mlir_path
     } else {
@@ -361,13 +361,19 @@ fn run_iree_import_tflite(input_path: &Path, output_path: &Path) -> syn::Result<
         "-o".to_string(),
         output_path.display().to_string(),
     ];
-    if let Some(extra_args) = env_first(&[
-        "ONELINER_IREE_IMPORT_TFLITE_FLAGS",
-        "IREE_IMPORT_TFLITE_FLAGS",
-    ]) {
-        args.extend(extra_args.split_whitespace().map(str::to_string));
-    }
+
     run_command(Command::new(importer).args(args), "iree-import-tflite")
+}
+
+fn run_tosa_converter_for_tflite(input_path: &Path, output_path: &Path) -> syn::Result<()> {
+    let converter = "tosa-converter-for-tflite".to_string();
+    let args = [
+        input_path.display().to_string(),
+        "--text".to_string(),
+        "-o".to_string(),
+        output_path.display().to_string(),
+    ];
+    run_command(Command::new(converter).args(args), "tosa-converter")
 }
 
 /// Runs `iree-compile` to produce VMFB, object file, and IR dumps.
