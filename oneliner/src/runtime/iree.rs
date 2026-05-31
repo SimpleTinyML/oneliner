@@ -3,7 +3,7 @@
 use core::ffi::c_void;
 
 use super::buffer::clipped_len;
-use super::{Error, Result, TensorRange};
+use super::{DefaultExecutor, Error, Executor, Result, TensorRange};
 use log;
 pub const MAX_BINDINGS: usize = 32;
 
@@ -209,7 +209,13 @@ pub fn dispatch_fn_from_library(
     //     log::info!("Export {}: name = {}, ptr = {}", index, name, func_ptr as usize);
     // }
 
-    unsafe {log::debug!("Resolved dispatch function for ordinal {} at address {:#x}", ordinal, *exports.ptrs.add(ordinal) as usize)};
+    unsafe {
+        log::debug!(
+            "Resolved dispatch function for ordinal {} at address {:#x}",
+            ordinal,
+            *exports.ptrs.add(ordinal) as usize
+        )
+    };
     Some(unsafe { *exports.ptrs.add(ordinal) })
 }
 
@@ -236,6 +242,24 @@ pub fn try_dispatch(
     workload: &[u32],
     ranges: &[TensorRange],
 ) -> Result<()> {
+    let mut executor = DefaultExecutor::default();
+    try_dispatch_with_executor(&mut executor, function, params, workload, ranges)
+}
+
+/// Dispatches an IREE workgroup through the provided executor.
+///
+/// Input: executor, optional dispatch function, constants, workload, and tensor ranges.
+/// Output: `Ok(())` after dispatch or an `Error` if bindings/status fail.
+pub fn try_dispatch_with_executor<E>(
+    executor: &mut E,
+    function: Option<DispatchFn>,
+    params: &[u32],
+    workload: &[u32],
+    ranges: &[TensorRange],
+) -> Result<()>
+where
+    E: Executor,
+{
     let Some(function) = function else {
         return Ok(());
     };
@@ -254,7 +278,13 @@ pub fn try_dispatch(
             binding_ptrs[index] = range.tensor.ptr.add(range.offset) as *mut c_void;
         }
         binding_lengths[index] = len;
-        log::debug!("Binding {}: ptr = {:#x}, length = {}, align16 = {}", index, binding_ptrs[index] as usize, binding_lengths[index], (binding_ptrs[index] as usize) % 16);
+        log::debug!(
+            "Binding {}: ptr = {:#x}, length = {}, align16 = {}",
+            index,
+            binding_ptrs[index] as usize,
+            binding_lengths[index],
+            (binding_ptrs[index] as usize) % 16
+        );
     }
 
     let environment = iree_hal_executable_environment_v0_t {
@@ -282,24 +312,33 @@ pub fn try_dispatch(
         binding_ptrs: binding_ptrs.as_ptr(),
         binding_lengths: binding_lengths.as_ptr(),
     };
-    
+    let environment_ptr = core::ptr::addr_of!(environment) as usize;
+    let dispatch_state_ptr = core::ptr::addr_of!(dispatch_state) as usize;
+
     for z in 0..workload_z {
         for y in 0..workload_y {
             for x in 0..workload_x {
-                let workgroup_state = iree_hal_executable_workgroup_state_v0_t {
-                    workgroup_id_x: x,
-                    workgroup_id_y: y,
-                    workgroup_id_z: z,
-                    reserved: 0,
-                    processor_id: 0,
-                    local_memory: core::ptr::null_mut(),
-                    local_memory_size: 0,
-                };
                 log::debug!("Dispatching workgroup (x={}, y={}, z={})", x, y, z);
-                let status = unsafe { function(&environment, &dispatch_state, &workgroup_state) };
-                if status != 0 {
-                    return Err(Error::DispatchFailed { status });
-                }
+                executor.schedule(move || {
+                    let workgroup_state = iree_hal_executable_workgroup_state_v0_t {
+                        workgroup_id_x: x,
+                        workgroup_id_y: y,
+                        workgroup_id_z: z,
+                        reserved: 0,
+                        processor_id: 0,
+                        local_memory: core::ptr::null_mut(),
+                        local_memory_size: 0,
+                    };
+                    let environment =
+                        environment_ptr as *const iree_hal_executable_environment_v0_t;
+                    let dispatch_state =
+                        dispatch_state_ptr as *const iree_hal_executable_dispatch_state_v0_t;
+                    let status = unsafe { function(environment, dispatch_state, &workgroup_state) };
+                    if status != 0 {
+                        return Err(Error::DispatchFailed { status });
+                    }
+                    Ok(())
+                })?;
             }
         }
     }

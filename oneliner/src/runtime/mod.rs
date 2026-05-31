@@ -1,4 +1,5 @@
 mod buffer;
+mod executor;
 mod interface;
 mod microflow;
 mod prediction;
@@ -10,6 +11,9 @@ pub use buffer::{
     bind_static_input, concurrent, fill, read_static_output, tensor_ref_from_raw, Access,
     FillValue, TensorRange, TensorRef, TensorSource,
 };
+#[cfg(feature = "ariel-os")]
+pub use executor::ArielOsExecutor;
+pub use executor::{DefaultExecutor, Executor, SequentialExecutor, WorkItem};
 pub use interface::{Error, ModelArtifacts, ModelSource, Predict, Result};
 pub use microflow::MicroflowModel;
 pub use prediction::Prediction;
@@ -20,7 +24,7 @@ pub use iree::{
     iree_hal_executable_environment_v0_t, iree_hal_executable_import_thunk_v0_t,
     iree_hal_executable_import_v0_t, iree_hal_executable_library_header_t,
     iree_hal_executable_library_query_fn_t, iree_hal_executable_workgroup_state_v0_t,
-    iree_hal_processor_v0_t, try_dispatch, DispatchFn,
+    iree_hal_processor_v0_t, try_dispatch, try_dispatch_with_executor, DispatchFn,
 };
 
 #[cfg(feature = "iree-runtime")]

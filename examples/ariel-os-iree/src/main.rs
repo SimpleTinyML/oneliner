@@ -10,6 +10,7 @@ use OneLiner::model;
 use OneLiner::runtime::{ModelSource, Predict};
 
 #[model("models/mcunet_10fps_vww.mlir", backend = "iree")]
+// #[model("models/lenet5_quantized.tflite", backend = "iree")]
 struct McunetVww;
 
 const INPUT_LEN: usize = 64 * 64 * 3;
