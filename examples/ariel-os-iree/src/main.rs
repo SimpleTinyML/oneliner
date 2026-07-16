@@ -1,13 +1,19 @@
 #![no_main]
 #![no_std]
 
+use ariel_os::log::{
+    error, 
+    info,
+};
+
 use ariel_os::debug::{
     exit,
-    log::{error, info},
     ExitCode,
 };
+
 use OneLiner::model;
-use OneLiner::runtime::{ModelSource, Predict};
+use OneLiner::runtime::{ModelSource, Predict, Aligned, AlignedType};
+
 
 #[model("models/mcunet_10fps_vww.mlir", backend = "iree")]
 // #[model("models/lenet5_quantized.tflite", backend = "iree")]
