@@ -15,18 +15,24 @@ use OneLiner::model;
 use OneLiner::runtime::{ModelSource, Predict, Aligned, AlignedType};
 
 
-#[model("models/mcunet_10fps_vww.mlir", backend = "iree")]
-// #[model("models/lenet5_quantized.tflite", backend = "iree")]
-struct McunetVww;
-
+#[model("models/mcunet-10fps_vww.tflite", backend = "iree")]
+struct Model;
 const INPUT_LEN: usize = 64 * 64 * 3;
 static INPUT: [u8; INPUT_LEN] = [7; INPUT_LEN];
-
 const EXPECTED: [u8; 2] = [4, 251];
+
+
+// #[model("models/lenet5_quantized.tflite", backend = "iree")]
+// struct Model;
+// const INPUT_LEN: usize = 28 * 28 * 4;
+// static INPUT: Aligned<AlignedType, [u8; INPUT_LEN]> = Aligned([7; INPUT_LEN]);
+// const OUTPUT_LEN: usize = 10 * 4;
+// const EXPECTED: [u8; OUTPUT_LEN] = [0; OUTPUT_LEN];
 
 #[ariel_os::task(autostart)]
 async fn main() {
-    let artifacts = <McunetVww as ModelSource>::ARTIFACTS;
+
+    let artifacts = <Model as ModelSource>::ARTIFACTS;
     info!(
         "OneLiner MCUNet IREE example running on {}",
         ariel_os::buildinfo::BOARD
@@ -41,7 +47,7 @@ async fn main() {
         exit(ExitCode::FAILURE);
     }
 
-    match McunetVww::try_predict(&INPUT) {
+    match Model::try_predict(&INPUT[..]) {
         Ok(prediction) if prediction.as_bytes() == EXPECTED => {
             info!("MCUNet IREE validation passed");
             exit(ExitCode::SUCCESS);
