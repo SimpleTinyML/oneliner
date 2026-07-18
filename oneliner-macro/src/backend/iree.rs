@@ -114,9 +114,12 @@ fn expand_iree_items(input_struct: syn::ItemStruct, artifacts: IreeArtifacts) ->
             }
         }
     } else {
-        quote! {
-            ::OneLiner::runtime::Prediction::empty()
-        }
+
+        syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "Cannot locate output binding in IREE metadata; the model may not have any outputs or the converter may have failed to generate them.",
+        ).to_compile_error().into()
+
     };
 
     quote! {
