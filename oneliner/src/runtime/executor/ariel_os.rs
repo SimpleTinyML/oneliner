@@ -4,7 +4,7 @@ use ariel_os::thread::sync::Channel;
 
 use super::{Executor, WorkItem};
 
-use log::debug;
+use log::{debug, trace};
 
 pub const ARIEL_OS_EXECUTOR_WORKER_STACK_SIZE: usize = 2048;
 pub const ARIEL_OS_EXECUTOR_WORKER_PRIORITY: u8 = 1;
@@ -86,7 +86,7 @@ where
 fn worker_loop() -> ! {
     loop {
         let task = TASKS.recv();
-        debug!("Worker received task: run={:p}, slot={:#x}, completion={:#x}", task.run, task.slot, task.completion);
+        trace!("Worker received task: run={:p}, slot={:#x}, completion={:#x}", task.run, task.slot, task.completion);
         unsafe {
             (task.run)(task.slot);
             let completion = &*(task.completion as *const Channel<()>);

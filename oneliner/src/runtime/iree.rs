@@ -210,7 +210,7 @@ pub fn dispatch_fn_from_library(
     // }
 
     unsafe {
-        log::debug!(
+        log::trace!(
             "Resolved dispatch function for ordinal {} at address {:#x}",
             ordinal,
             *exports.ptrs.add(ordinal) as usize
@@ -278,7 +278,7 @@ where
             binding_ptrs[index] = range.tensor.ptr.add(range.offset) as *mut c_void;
         }
         binding_lengths[index] = len;
-        log::debug!(
+        log::trace!(
             "Binding {}: ptr = {:#x}, length = {}, align16 = {}",
             index,
             binding_ptrs[index] as usize,
@@ -318,7 +318,7 @@ where
     for z in 0..workload_z {
         for y in 0..workload_y {
             for x in 0..workload_x {
-                log::debug!("Dispatching workgroup (x={}, y={}, z={})", x, y, z);
+                log::trace!("Dispatching workgroup (x={}, y={}, z={})", x, y, z);
                 executor.schedule(move || {
                     let workgroup_state = iree_hal_executable_workgroup_state_v0_t {
                         workgroup_id_x: x,
