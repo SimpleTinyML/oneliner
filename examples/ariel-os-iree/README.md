@@ -1,22 +1,17 @@
 # OneLiner Ariel OS IREE Example
 
-This example validates the OneLiner IREE backend from an Ariel OS app.
+This example validates the OneLiner IREE backend from an Ariel OS app with a
+quantized LeNet-5 model.
 
-It builds a tiny IREE model at Rust compile time, links the generated static
-object, runs the generated dispatch flow in a `no_std` Ariel OS task, and exits
+It builds the model at Rust compile time, links the generated static
+object, runs the generated dispatch flow in a `no_std` Ariel OS thread, and exits
 successfully only when the output bytes match the expected result.
 
-The model is `models/abs2.mlir`:
+The active model is `models/lenet5_quantized.tflite`:
 
-- input: `tensor<2xf32>` / 8 bytes
-- operation: `math.absf`
-- expected validation: `[-1.0, 3.0] -> [1.0, 3.0]`
-
-The MCUNet visual wake words example is `models/mcunet_10fps_vww.mlir`:
-
-- input: `tensor<1x64x64x3xi8>` / 12,288 bytes
-- output: `tensor<1x2xi8>` / 2 bytes
-- expected validation: all-zero input image -> model output bytes
+- input: 28 x 28 x 4 bytes
+- output: 10 x 4 bytes
+- expected validation: input bytes filled with `7` -> 40 zero bytes
 
 ## Build
 
@@ -26,28 +21,16 @@ From this directory:
 conda run -n ariel_ml laze build -b native
 ```
 
-To build only the MCUNet example:
-
-```sh
-conda run -n ariel_ml laze build -b native oneliner-ariel-os-iree-mcunet
-```
-
 To run the native board:
 
 ```sh
 conda run -n ariel_ml laze build -b native run --bin oneliner-ariel-os-iree
 ```
 
-To run the MCUNet native board:
-
-```sh
-conda run -n ariel_ml laze build -b native -a oneliner-ariel-os-iree-mcunet run --bin oneliner-ariel-os-iree-mcunet
-```
-
 This example tracks Ariel OS `v0.4.0`, the latest release tag available when it
 was added. Ariel OS `v0.4.0` requires Rust 1.94 or newer. The OneLiner IREE
 backend needs `iree-compile` on `PATH`. For `.tflite` models it also needs
-`iree-import-tflite`, but this example uses MLIR directly.
+`tosa-converter-for-tflite` on `PATH`.
 
 ## Hardware Boards
 

@@ -1,6 +1,7 @@
+mod common;
 mod iree;
-mod microflow;
 mod llvm_target_info;
+mod microflow;
 
 use std::path::PathBuf;
 use syn::ItemStruct;
@@ -13,6 +14,18 @@ use crate::args::{BackendArg, ModelArgs};
 /// Output: generated Rust tokens or a `syn::Error` for invalid input/backend failure.
 pub fn expand(args: ModelArgs, input_struct: ItemStruct) -> syn::Result<proc_macro2::TokenStream> {
     let span = args.model_path.span();
+    if !input_struct.generics.params.is_empty() || input_struct.generics.where_clause.is_some() {
+        return Err(syn::Error::new_spanned(
+            &input_struct.generics,
+            "#[model] currently supports only non-generic structs",
+        ));
+    }
+    if !matches!(input_struct.fields, syn::Fields::Unit) {
+        return Err(syn::Error::new_spanned(
+            &input_struct.fields,
+            "#[model] must be applied to a unit struct",
+        ));
+    }
     let caller_manifest_dir = std::env::var_os("CARGO_MANIFEST_DIR")
         .map(PathBuf::from)
         .ok_or_else(|| {
@@ -28,10 +41,10 @@ pub fn expand(args: ModelArgs, input_struct: ItemStruct) -> syn::Result<proc_mac
         caller_manifest_dir.join(model_path)
     };
 
-    if !model_path.exists() {
+    if !model_path.is_file() {
         return Err(syn::Error::new(
             span,
-            format!("model file does not exist: {}", model_path.display()),
+            format!("model path is not a file: {}", model_path.display()),
         ));
     }
 

@@ -73,53 +73,47 @@ let prediction = MyModel::try_predict(input_data)?;
 Generated artifact paths are available for debugging:
 
 ```rust
-println!("{:#?}", MyModel::artifacts());
+use OneLiner::runtime::ModelSource;
+
+println!("{:#?}", MyModel::ARTIFACTS);
 ```
 
 ## Built-In IREE Backend
 
 The IREE backend compiles the model at Rust compile time. For `.tflite` inputs
-it first imports the FlatBuffer to MLIR with `iree-import-tflite`, then asks
+it first converts the FlatBuffer to TOSA MLIR with `tosa-converter-for-tflite`, then asks
 IREE to emit the model object file, finds the stage-10 executable-targets IR,
 runs `iree_stream_flow_to_rust_using_re.py`, and includes the generated Rust
 flow.
 
 Required tools:
 
-- `iree-import-tflite` on `PATH`, or `ONELINER_IREE_IMPORT_TFLITE=/path/to/iree-import-tflite`
+- `tosa-converter-for-tflite` on `PATH`, or `ONELINER_TOSA_CONVERTER_FOR_TFLITE=/path/to/tosa-converter-for-tflite`
 - `iree-compile` on `PATH`, or `ONELINER_IREE_COMPILE=/path/to/iree-compile`
 - `python` with `iree-compiler` installed, or `ONELINER_PYTHON=/path/to/python`
 
 Default IREE flags:
 
 ```powershell
-iree-import-tflite model.tflite -o <OUT_DIR>/model.tosa.mlir
+tosa-converter-for-tflite model.tflite --text -o <OUT_DIR>/model.tosa.mlir
 
 iree-compile <OUT_DIR>/model.tosa.mlir `
   --iree-hal-target-device=local `
   --iree-hal-local-target-device-backends=llvm-cpu `
   --iree-llvmcpu-target-triple=<TARGET> `
-  --iree-llvmcpu-target-cpu=<host-or-generic> `
+  --iree-llvmcpu-target-cpu=<target-cpu> `
   --iree-llvmcpu-target-cpu-features=<target-features> `
-  --align-all-functions=4 `
-  --align-all-blocks=4 `
-  --iree-llvmcpu-stack-allocation-limit=4096 `
   --iree-stream-partitioning-favor=min-peak-memory `
-  --iree-vm-bytecode-module-strip-source-map=true `
-  --iree-vm-emit-polyglot-zip=false `
   --iree-llvmcpu-link-embedded=false `
   --iree-llvmcpu-link-static `
   --iree-llvmcpu-static-library-output-path=<OUT_DIR>/model.o `
-  --mlir-print-ir-after-all `
-  --mlir-print-ir-module-scope `
-  --mlir-print-ir-tree-dir=<OUT_DIR>/iree-ir-dumps `
+  --dump-compilation-phases-to=<OUT_DIR>/iree-ir-dumps `
   -o <OUT_DIR>/model.vmfb
 ```
 
 IREE-specific environment overrides:
 
-- `ONELINER_IREE_IMPORT_TFLITE`
-- `ONELINER_IREE_IMPORT_TFLITE_FLAGS`
+- `ONELINER_TOSA_CONVERTER_FOR_TFLITE`
 - `ONELINER_IREE_TARGET_TRIPLE`
 - `ONELINER_IREE_TARGET_CPU`
 - `ONELINER_IREE_CPU_FEATURES`
@@ -145,7 +139,7 @@ impl OneLiner::runtime::MicroflowModel for MyModel {
     type Output = MyOutput;
 
     fn try_predict_microflow(input: &[u8]) -> Result<Self::Output, Self::Error> {
-        run_microflow(<MyModel as OneLiner::runtime::ModelSource>::MODEL_BYTES, input)
+        run_microflow(include_bytes!("path/to/model.microflow"), input)
     }
 }
 ```
@@ -190,7 +184,6 @@ pub trait Predict<Input: ?Sized = [u8]> {
 
 pub trait ModelSource {
     const MODEL_PATH: &'static str;
-    const MODEL_BYTES: &'static [u8];
     const ARTIFACTS: ModelArtifacts;
 }
 
@@ -226,7 +219,8 @@ the host during Cargo builds and uses `std`; only the target runtime is
 - `oneliner/src/runtime/buffer.rs`: generic static-buffer helpers.
 - `oneliner/src/runtime/iree.rs`: optional IREE local executable runtime helpers.
 - `oneliner-macro/src/backend/microflow.rs`: Microflow backend expansion.
-- `oneliner-macro/src/backend/iree.rs`: built-in IREE expansion.
+- `oneliner-macro/src/backend/iree.rs`: IREE expansion entry point.
+- `oneliner-macro/src/backend/iree/`: artifact, metadata, toolchain, discovery, and codegen modules.
 
 ## Flow Converter CLI
 

@@ -29,11 +29,14 @@ impl ModelArgs {
             }
         };
 
-        let mut backend = BackendArg::Iree;
+        let mut backend = None;
         for arg in args {
             match arg {
                 NestedMeta::Meta(Meta::NameValue(meta)) if meta.path.is_ident("backend") => {
-                    backend = parse_backend(meta.lit)?;
+                    if backend.is_some() {
+                        return Err(syn::Error::new(meta.span(), "duplicate backend option"));
+                    }
+                    backend = Some(parse_backend(meta.lit)?);
                 }
                 other => {
                     return Err(syn::Error::new(
@@ -46,7 +49,7 @@ impl ModelArgs {
 
         Ok(Self {
             model_path,
-            backend,
+            backend: backend.unwrap_or(BackendArg::Iree),
         })
     }
 }
@@ -73,5 +76,31 @@ fn parse_backend(lit: Lit) -> syn::Result<BackendArg> {
             value.span(),
             format!("unknown backend '{other}', expected 'iree' or 'microflow'"),
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_duplicate_backend_options() {
+        let args: AttributeArgs = vec![
+            syn::parse_quote!("model.tflite"),
+            syn::parse_quote!(backend = "iree"),
+            syn::parse_quote!(backend = "microflow"),
+        ];
+
+        assert!(ModelArgs::parse(args).is_err());
+    }
+
+    #[test]
+    fn defaults_to_iree() {
+        let args: AttributeArgs = vec![syn::parse_quote!("model.tflite")];
+
+        assert!(matches!(
+            ModelArgs::parse(args).unwrap().backend,
+            BackendArg::Iree
+        ));
     }
 }

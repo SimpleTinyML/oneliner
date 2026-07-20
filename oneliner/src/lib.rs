@@ -12,7 +12,7 @@ pub type Result<T> = runtime::Result<T>;
 
 /// Builds a `TensorRef` for converter-generated tensor storage.
 ///
-/// Input: generated static byte array or `TensorRef` descriptor name.
+/// Input: converter-generated static byte-array storage.
 /// Output: dispatch-ready `TensorRef`.
 #[macro_export]
 macro_rules! tensor_ref {

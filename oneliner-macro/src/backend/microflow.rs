@@ -1,6 +1,8 @@
 use quote::quote;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use syn::ItemStruct;
+
+use super::common::path_lit;
 
 /// Expands the Microflow backend for a model struct.
 ///
@@ -48,15 +50,4 @@ pub fn expand(input_struct: ItemStruct, model_path: PathBuf) -> proc_macro2::Tok
             }
         }
     }
-}
-
-/// Converts a filesystem path into a Rust string literal for generated code.
-///
-/// Input: filesystem path.
-/// Output: `syn::LitStr` with Windows separators normalized to `/`.
-fn path_lit(path: &Path) -> syn::LitStr {
-    syn::LitStr::new(
-        &path.to_string_lossy().replace('\\', "/"),
-        proc_macro2::Span::call_site(),
-    )
 }

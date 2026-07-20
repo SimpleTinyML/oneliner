@@ -11,7 +11,6 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
-import keyword
 import re
 import struct
 import sys
@@ -20,6 +19,13 @@ from typing import Any
 
 
 SSA_RE = r"%[A-Za-z_.$-][\w.$-]*(?:#\d+)?|%\d+"
+RUST_KEYWORDS = {
+    "as", "async", "await", "break", "const", "continue", "crate", "dyn",
+    "else", "enum", "extern", "false", "fn", "for", "gen", "if", "impl",
+    "in", "let", "loop", "match", "mod", "move", "mut", "pub", "ref",
+    "return", "self", "Self", "static", "struct", "super", "trait", "true",
+    "try", "type", "unsafe", "use", "where", "while", "yield",
+}
 
 
 @dataclasses.dataclass
@@ -65,6 +71,7 @@ class DispatchCall:
     ranges: list[TensorRange]
     workload: tuple[int | None, ...]
 
+
 @dataclasses.dataclass
 class FillCommand:
     kind: str
@@ -100,7 +107,7 @@ def rust_ident(raw: str) -> str:
         ident = "value"
     if ident[0].isdigit():
         ident = f"v_{ident}"
-    if keyword.iskeyword(ident):
+    if ident in RUST_KEYWORDS:
         ident += "_"
     return ident
 
@@ -409,9 +416,7 @@ def parse_resource_roles(text: str) -> dict[str, str]:
     return roles
 
 
-def binding_name(binding: ResourceBinding | None) -> str:
-    if binding is None:
-        return "unknown"
+def binding_name(binding: ResourceBinding) -> str:
     if binding.role == "input":
         return f"input_{rust_ident(binding.arg)}"
     if binding.role == "output":
@@ -519,7 +524,11 @@ def parse_dispatch(head: str, body: str, constants: dict[str, int], func_workloa
         params, param_values = parse_params(tail[1:close_pos], constants)
     executable, function = split_symbol_ref(callee)
     workload = tuple()
-    ordinal = int(executable.lstrip("main_dispatch_")) if executable.startswith("main_dispatch_") else 0
+    ordinal = (
+        int(executable.removeprefix("main_dispatch_"))
+        if executable.startswith("main_dispatch_")
+        else 0
+    )
     for item in func_workloads:
         if item["function"] == function:
             workload = item["workload"]
@@ -636,7 +645,10 @@ def infer_external_roles(bindings: list[ResourceBinding], commands: list[Any]) -
 def apply_tensor_names(command: Any, bindings_by_arg: dict[str, ResourceBinding]) -> None:
     for item in command_ranges(command):
         binding = bindings_by_arg.get(item.arg)
-        item.tensor_name = binding_name(binding) if binding else rust_ident(item.arg)
+        if binding is None:
+            raise StreamExtractionError(f"resource binding for {item.arg} was not found")
+        item.tensor_name = binding_name(binding)
+
 
 def parse_func_workloads(mlir_text: str):
     results = []
@@ -699,17 +711,11 @@ def iter_dispatches(commands: list[Any]) -> Any:
         elif isinstance(command, ConcurrentCommand):
             yield from iter_dispatches(command.commands)
 
-def align_dispatch_ordinals_with_nums(commands: list[Any]) -> set[int]:
-    original_ordinals = set()
-    for command in iter_dispatches(commands):
-        if isinstance(command, DispatchCall):
-            original_ordinals.add(command.ordinal)
-    sorted_ordinals = sorted(original_ordinals)
+def normalize_dispatch_ordinals(commands: list[Any]) -> None:
+    sorted_ordinals = sorted({command.ordinal for command in iter_dispatches(commands)})
     ordinal_map = {ordinal: index for index, ordinal in enumerate(sorted_ordinals)}
     for command in iter_dispatches(commands):
-        if isinstance(command, DispatchCall):
-            command.ordinal = ordinal_map[command.ordinal]
-    return original_ordinals
+        command.ordinal = ordinal_map[command.ordinal]
 
 
 def parse_cmd_executes(text: str) -> tuple[list[CmdExecute], dict[str, ConstantBlob]]:
@@ -744,7 +750,7 @@ def parse_cmd_executes(text: str) -> tuple[list[CmdExecute], dict[str, ConstantB
         for command in commands:
             apply_tensor_names(command, bindings_by_arg)
 
-        align_dispatch_ordinals_with_nums(commands)
+        normalize_dispatch_ordinals(commands)
 
         executes.append(
             CmdExecute(
@@ -777,98 +783,69 @@ def render_resource_static(binding: ResourceBinding, constant_blobs: dict[str, C
             lines.extend(bytes_to_rust_array(blob.data))
             lines.append("]);")
             return lines
-        if binding.size is not None:
-            return [f"pub static {name}: Aligned<AlignedType, [u8; {binding.size}]> = Aligned([0; {binding.size}]); // constant bytes unavailable"]
-        return [f"// constant {binding.arg} size {binding.size_expr} could not be materialized"]
+        raise StreamExtractionError(f"constant {binding.arg} could not be materialized")
 
-    if binding.role == "input":
-        return [f"pub static mut {name}: TensorRef = TensorRef {{ ptr: core::ptr::null_mut(), len: 0 }};"]
-
-    if binding.size is not None:
-        return [f"pub static mut {name}: Aligned<AlignedType, [u8; {binding.size}]> = Aligned([0; {binding.size}]);"]
-    return [f"// static mut {name}: size expression {binding.size_expr} could not be resolved"]
+    if binding.size is None:
+        raise StreamExtractionError(
+            f"resource {binding.arg} size expression {binding.size_expr} could not be resolved"
+        )
+    return [f"pub static mut {name}: Aligned<AlignedType, [u8; {binding.size}]> = Aligned([0; {binding.size}]);"]
 
 
-def render_tensor_range(item: TensorRange) -> tuple[str, str]:
+def render_tensor_range(item: TensorRange) -> str:
     access = {"ro": "Ro", "wo": "Wo", "rw": "Rw"}.get(item.access, "Unknown")
-    offset = item.offset if item.offset is not None else 0
-    length = item.length if item.length is not None else 0
-    tensor_ref = f"tensor_ref!({const_ident(item.tensor_name)})"
-    suffix = ""
     if item.offset is None or item.length is None:
-        suffix = f" // unresolved range: {item.offset_expr} for {item.length_expr}"
+        raise StreamExtractionError(
+            f"unresolved tensor range {item.arg}: {item.offset_expr} for {item.length_expr}"
+        )
+    offset = item.offset
+    length = item.length
+    tensor_ref = f"tensor_ref!({const_ident(item.tensor_name)})"
     return (
-        f"TensorRange {{ tensor: {tensor_ref}, access: Access::{access}, offset: {offset}, length: {length} }}",
-        suffix,
+        f"TensorRange {{ tensor: {tensor_ref}, access: Access::{access}, "
+        f"offset: {offset}, length: {length} }}"
     )
 
 
 def render_command(command: Any, indent: str) -> list[str]:
     out: list[str] = []
     if isinstance(command, DispatchCall):
-        params = ", ".join(str(value) if value is not None else "0" for value in command.param_values)
-        workload = ", ".join(str(value) if value is not None else "1" for value in command.workload)
-        unresolved = [expr for expr, value in zip(command.params, command.param_values) if value is None]
-        unresolved.extend("workload" for value in command.workload if value is None)
-        suffix = f" // unresolved: {', '.join(unresolved)}" if unresolved else ""
-        # query = f"{command.executable}_library_query"
+        if (
+            any(value is None for value in command.param_values)
+            or len(command.workload) != 3
+            or any(value is None for value in command.workload)
+        ):
+            raise StreamExtractionError(f"unresolved dispatch values for {command.callee}")
+        params = ", ".join(str(value) for value in command.param_values)
+        workload = ", ".join(str(value) for value in command.workload)
+        out.append(f"{indent}unsafe {{")
         out.append(
-            f"{indent}dispatch(dispatch_fn_from_library(query_fn_ptr, {command.ordinal}), &[{params}], &[{workload}], &[{suffix}"
+            f"{indent}    try_dispatch(dispatch_fn_from_library(QUERY_FN_PTR, {command.ordinal})?, &[{params}], &[{workload}], &["
         )
-        # out.append(f"{indent}dispatch(Some({command.function}), &[{params}], &[{workload}], &[{suffix}")
         for item in command.ranges:
-            rendered, range_suffix = render_tensor_range(item)
-            out.append(f"{indent}    {rendered},{range_suffix}")
-        out.append(f"{indent}]);")
+            out.append(f"{indent}        {render_tensor_range(item)},")
+        out.append(f"{indent}    ])?;")
+        out.append(f"{indent}}}")
     elif isinstance(command, FillCommand):
-        rendered, range_suffix = render_tensor_range(command.target)
-        value = command.value if command.value is not None else 0
-        suffix = f" // unresolved fill value: {command.value_expr}" if command.value is None else ""
-        out.append(f"{indent}fill({rendered}, {value});{suffix}{range_suffix}")
+        if command.value is None:
+            raise StreamExtractionError(f"unresolved fill value {command.value_expr}")
+        rendered = render_tensor_range(command.target)
+        out.append(f"{indent}unsafe {{ fill({rendered}, {command.value})?; }}")
     elif isinstance(command, ConcurrentCommand):
         out.append(f"{indent}concurrent(|| {{")
         for child in command.commands:
             out.extend(render_command(child, indent + "    "))
-        out.append(f"{indent}}});")
+        out.append(f"{indent}    Ok(())")
+        out.append(f"{indent}}})?;")
     return out
-
-# def render_extern_dispatch_func(cmd: DispatchCall) -> list[str]:
-#     return [
-#         f'unsafe extern "C" {{',
-#         f'    pub unsafe fn {cmd.function}(',
-#         f'        environment: *const iree_hal_executable_environment_v0_t,',
-#         f'        dispatch_state: *const iree_hal_executable_dispatch_state_v0_t,',
-#         f'        workgroup_state: *const iree_hal_executable_workgroup_state_v0_t,',
-#         f'    ) -> i32;',
-#         f'}}',
-#     ]
-
-# def render_extern_c_dispatch_func(executes: list[CmdExecute]) -> list[str]:
-#     out = ["// import C dispatch functions.",]
-#     cmd_functions = set()
-#     for execute in executes:
-#         for cmd in execute.commands:
-#             if isinstance(cmd, DispatchCall):
-#                 if cmd.function not in cmd_functions:
-#                     cmd_functions.add(cmd.function)
-#                     out.extend(render_extern_dispatch_func(cmd))
-#             if isinstance(cmd, ConcurrentCommand):
-#                 for child in cmd.commands:
-#                     if isinstance(child, DispatchCall):
-#                         if child.function not in cmd_functions:
-#                             cmd_functions.add(child.function)
-#                             out.extend(render_extern_dispatch_func(child))
-#     return out
-
 
 def render_rust(executes: list[CmdExecute], constant_blobs: dict[str, ConstantBlob]) -> str:
     out: list[str] = [
-        "// Generated by iree_stream_flow_to_rust.py",
+        "// Generated by iree_stream_flow_to_rust_using_re.py",
         "// MLIR was matched with regex plus balanced delimiter scanning.",
         "",
     ]
-    
-    # out.extend(render_extern_c_dispatch_func(executes))
+
     emitted: set[str] = set()
     for execute in executes:
         for binding in execute.resources:
@@ -880,19 +857,27 @@ def render_rust(executes: list[CmdExecute], constant_blobs: dict[str, ConstantBl
             out.append("")
 
     for execute in executes:
-        out.append(f"pub fn {rust_ident(execute.name)}() {{")
+        out.append(f"pub fn {rust_ident(execute.name)}() -> ::OneLiner::runtime::Result<()> {{")
         if execute.line_no is not None:
             out.append(f"    // source MLIR line: {execute.line_no}")
         if execute.result:
             out.append(f"    // stream.cmd.execute result timepoint: {execute.result}")
         for command in execute.commands:
             out.extend(render_command(command, "    "))
+        out.append("    Ok(())")
         out.append("}")
         out.append("")
     return "\n".join(out).rstrip() + "\n"
 
 
 def dataclass_to_json(value: Any) -> Any:
+    if isinstance(value, ResourceBinding):
+        rendered = {
+            field.name: dataclass_to_json(getattr(value, field.name))
+            for field in dataclasses.fields(value)
+        }
+        rendered["static_ident"] = const_ident(binding_name(value))
+        return rendered
     if dataclasses.is_dataclass(value):
         return {field.name: dataclass_to_json(getattr(value, field.name)) for field in dataclasses.fields(value)}
     if isinstance(value, list):
@@ -904,33 +889,71 @@ def dataclass_to_json(value: Any) -> Any:
     return value
 
 
+def render_metadata_json(executes: list[CmdExecute]) -> str:
+    document = {
+        "schema_version": 1,
+        "cmd_executes": [
+            {
+                "name": execute.name,
+                "resources": [
+                    {
+                        "static_ident": const_ident(binding_name(binding)),
+                        "kind": binding.kind,
+                        "size": binding.size,
+                        "role": binding.role,
+                    }
+                    for binding in execute.resources
+                ],
+            }
+            for execute in executes
+        ],
+    }
+    return json.dumps(document, indent=2) + "\n"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Regex-match IREE Stream MLIR and emit Rust dispatch flow.")
     parser.add_argument("input", type=Path, help="Input .mlir file")
     parser.add_argument("-o", "--output", type=Path, help="Output file, defaults to stdout")
     parser.add_argument("--format", choices=("rust", "json"), default="rust")
+    parser.add_argument("--rust-output", type=Path, help="Write generated Rust to this file")
+    parser.add_argument("--json-output", type=Path, help="Write generated metadata JSON to this file")
     args = parser.parse_args(argv)
+
+    if args.output and (args.rust_output or args.json_output):
+        parser.error("--output cannot be combined with --rust-output or --json-output")
 
     try:
         text = args.input.read_text(encoding="utf-8")
         executes, constant_blobs = parse_cmd_executes(text)
-    except StreamExtractionError as exc:
+        rust_rendered = render_rust(executes, constant_blobs)
+
+        if args.rust_output or args.json_output:
+            if args.rust_output:
+                args.rust_output.write_text(rust_rendered, encoding="utf-8")
+            if args.json_output:
+                args.json_output.write_text(render_metadata_json(executes), encoding="utf-8")
+            return 0
+
+        rendered = (
+            json.dumps(
+                {
+                    "constants": dataclass_to_json(constant_blobs),
+                    "cmd_executes": dataclass_to_json(executes),
+                },
+                indent=2,
+            )
+            + "\n"
+            if args.format == "json"
+            else rust_rendered
+        )
+        if args.output:
+            args.output.write_text(rendered, encoding="utf-8")
+        else:
+            sys.stdout.write(rendered)
+    except (OSError, StreamExtractionError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-
-    if args.format == "json":
-        rendered = json.dumps(
-            {"constants": dataclass_to_json(constant_blobs), "cmd_executes": dataclass_to_json(executes)},
-            indent=2,
-        )
-        rendered += "\n"
-    else:
-        rendered = render_rust(executes, constant_blobs)
-
-    if args.output:
-        args.output.write_text(rendered, encoding="utf-8")
-    else:
-        sys.stdout.write(rendered)
     return 0
 
 

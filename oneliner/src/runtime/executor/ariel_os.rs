@@ -3,7 +3,7 @@ use core::mem::MaybeUninit;
 
 use ariel_os::thread::sync::Channel;
 
-use portable_atomic::{fence, AtomicUsize, Ordering};
+use portable_atomic::{AtomicUsize, Ordering};
 
 static JOB_REMAINING: AtomicUsize = AtomicUsize::new(0);
 
@@ -11,20 +11,15 @@ use super::{Executor, WorkItem};
 
 use ariel_os::log::{debug, error, trace};
 
-pub const ARIEL_OS_EXECUTOR_WORKER_STACK_SIZE: usize = 2048;
-pub const ARIEL_OS_EXECUTOR_WORKER_PRIORITY: u8 = 1;
-
 const TASK_SLOT_COUNT: usize = 4;
 const TASK_SLOT_FREE: usize = 0;
 const TASK_SLOT_BUSY: usize = 1;
 
 #[derive(Clone, Copy)]
 struct TaskMessage {
-    run: unsafe fn(WorkItem, usize),
     item: WorkItem,
 }
 
-// #[derive(Clone, Copy)]
 struct TaskSlot {
     state: AtomicUsize,
     message: UnsafeCell<MaybeUninit<TaskMessage>>,
@@ -86,11 +81,7 @@ fn release_task_slot(id: usize) {
         .store(TASK_SLOT_FREE, Ordering::Release);
 }
 
-
 /// Ariel OS executor backed by a small fixed worker pool.
-///
-/// Work items are sent to Ariel OS worker threads and `schedule` waits until
-/// the selected worker has written the result back to the caller's stack frame.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct ArielOsExecutor;
 
@@ -109,19 +100,8 @@ impl Executor for ArielOsExecutor {
     ///
     /// Input: work item to execute.
     /// Output: result returned by the work item.
-    fn schedule(&mut self, item: WorkItem)
-    {
-        unsafe fn take_and_run(item: WorkItem, accepted: usize)
-
-        {
-            item.run();
-        }
-
-        // let accepted: Channel<()> = Channel::new();
-        let task = TaskMessage {
-            run: take_and_run,
-            item: item,
-        };
+    fn schedule(&mut self, item: WorkItem) {
+        let task = TaskMessage { item };
         let slot_id = acquire_task_slot();
 
         if slot_id >= TASK_SLOT_COUNT {
@@ -133,69 +113,75 @@ impl Executor for ArielOsExecutor {
 
         JOB_REMAINING.fetch_add(1, Ordering::Relaxed);
         let my_id = ariel_os::thread::current_tid().unwrap();
-        // fence(Ordering::Release);
         trace!(
-            "[{:?}]Scheduling task: slot={}, run={:?}, item={:?}",
-            my_id, slot_id, task.run, &task.item as *const WorkItem, 
+            "[{:?}] Scheduling task: slot={}, item={:?}",
+            my_id,
+            slot_id,
+            &task.item as *const WorkItem,
         );
-        // let slot_ptr = &slot as *const TaskSlot as usize;
         TASKS.send(&slot_id);
-        trace!("[{:?}]Finish Scheduling Task: slot={}, slot_id_addr = {:?}", my_id, slot_id, &slot_id as *const usize);
-        // accepted.recv();
+        trace!(
+            "[{:?}] Finished scheduling task: slot={}, slot_id_addr={:?}",
+            my_id,
+            slot_id,
+            &slot_id as *const usize
+        );
     }
 
     fn wait_job_completion(&mut self) {
-        while JOB_REMAINING.load(Ordering::Relaxed) > 0 {
+        while JOB_REMAINING.load(Ordering::Acquire) > 0 {
             ariel_os::thread::yield_same();
         }
     }
 }
 
-fn worker_loop() -> () {
+fn worker_loop() {
     let my_id = ariel_os::thread::current_tid().unwrap();
     let core = ariel_os::thread::core_id();
-    debug!("[{:?}] Runining at [{:?}] ...", my_id, core);
+    debug!("[{:?}] Running on core {:?}", my_id, core);
     loop {
-        trace!("[{:?}] Wating for Task...", my_id);
+        trace!("[{:?}] Waiting for task", my_id);
         let slot_id = TASKS.recv();
         trace!(
-            "[{:?}] Worker received task: slot={}, slot_id_addr = {:?}",
-            my_id, slot_id, &slot_id as *const usize
+            "[{:?}] Worker received task: slot={}, slot_id_addr={:?}",
+            my_id,
+            slot_id,
+            &slot_id as *const usize
         );
 
         if slot_id >= TASK_SLOT_COUNT {
-            error!("[{:?}] Worker received invalid task slot: {}", my_id, slot_id);
+            error!(
+                "[{:?}] Worker received invalid task slot: {}",
+                my_id, slot_id
+            );
             panic!("[{:?}] Invalid task slot", my_id);
         }
 
-        // fence(Ordering::Acquire);
         let task = TASK_SLOTS[slot_id].read();
         trace!(
-            "[{:?}] Worker received task: slot={}, run={:?}, item={:?}, ",
-            my_id, slot_id, task.run, &task.item as *const WorkItem,
+            "[{:?}] Worker running task: slot={}, item={:?}",
+            my_id,
+            slot_id,
+            &task.item as *const WorkItem,
         );
-        unsafe {
-            task.item.run();
-            trace!(
-            "[{:?}] Worker Finished task: slot={}, slot_id_addr = {:?}",
-            my_id, slot_id, &slot_id as *const usize
+        task.item.run();
+        trace!(
+            "[{:?}] Worker finished task: slot={}, slot_id_addr={:?}",
+            my_id,
+            slot_id,
+            &slot_id as *const usize
         );
-            release_task_slot(slot_id);
-            JOB_REMAINING.fetch_sub(1, Ordering::Relaxed);
-        }
+        release_task_slot(slot_id);
+        JOB_REMAINING.fetch_sub(1, Ordering::Release);
     }
 }
 
-
 #[ariel_os::thread(autostart)]
 fn oneliner_ariel_os_worker_0() {
-
     worker_loop();
 }
 
-
 #[ariel_os::thread(autostart)]
 fn oneliner_ariel_os_worker_1() {
-
     worker_loop();
 }

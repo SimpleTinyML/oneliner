@@ -8,7 +8,7 @@ mod prediction;
 mod iree;
 
 pub use buffer::{
-    bind_static_input, concurrent, fill, read_static_output, tensor_ref_from_raw, Access,
+    concurrent, fill, read_static_output, tensor_ref_from_raw, write_static_input, Access,
     FillValue, TensorRange, TensorRef, TensorSource,
 };
 #[cfg(feature = "ariel-os")]
@@ -27,5 +27,5 @@ pub use iree::{
     iree_hal_processor_v0_t, try_dispatch, try_dispatch_with_executor, DispatchFn,
 };
 
-pub use aligned::{Aligned, A2, A4, A16, A32, A64};
+pub use aligned::{Aligned, A16, A2, A32, A4, A64};
 pub type AlignedType = A64;

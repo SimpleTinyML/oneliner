@@ -38,10 +38,33 @@ pub trait ModelSource {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Error {
-    InputTooLarge { provided: usize, capacity: usize },
-    InputSizeMismatch { provided: usize, expected: usize },
-    TooManyBindings { provided: usize, capacity: usize },
-    DispatchFailed { status: i32 },
+    InputSizeMismatch {
+        provided: usize,
+        expected: usize,
+    },
+    TooManyBindings {
+        provided: usize,
+        capacity: usize,
+    },
+    TooManyConstants {
+        provided: usize,
+        capacity: usize,
+    },
+    MissingDispatchFunction {
+        ordinal: usize,
+    },
+    WorkgroupCountTooLarge {
+        dimension: char,
+        value: u32,
+    },
+    TensorRangeOutOfBounds {
+        offset: usize,
+        length: usize,
+        capacity: usize,
+    },
+    DispatchFailed {
+        status: i32,
+    },
 }
 
 impl core::fmt::Display for Error {
@@ -51,10 +74,6 @@ impl core::fmt::Display for Error {
     /// Output: `Ok(())` when the message was written.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::InputTooLarge { provided, capacity } => write!(
-                f,
-                "input has {provided} bytes, but the model input buffer holds {capacity} bytes"
-            ),
             Self::InputSizeMismatch { provided, expected } => write!(
                 f,
                 "input has {provided} bytes, but the model expects exactly {expected} bytes"
@@ -62,6 +81,25 @@ impl core::fmt::Display for Error {
             Self::TooManyBindings { provided, capacity } => write!(
                 f,
                 "dispatch has {provided} bindings, but runtime stack storage holds {capacity}"
+            ),
+            Self::TooManyConstants { provided, capacity } => write!(
+                f,
+                "dispatch has {provided} constants, but the IREE ABI supports {capacity}"
+            ),
+            Self::MissingDispatchFunction { ordinal } => {
+                write!(f, "IREE library does not expose dispatch ordinal {ordinal}")
+            }
+            Self::WorkgroupCountTooLarge { dimension, value } => write!(
+                f,
+                "workgroup count {dimension}={value} exceeds the IREE ABI limit"
+            ),
+            Self::TensorRangeOutOfBounds {
+                offset,
+                length,
+                capacity,
+            } => write!(
+                f,
+                "tensor range offset={offset} length={length} exceeds capacity {capacity}"
             ),
             Self::DispatchFailed { status } => {
                 write!(f, "backend dispatch returned status {status}")

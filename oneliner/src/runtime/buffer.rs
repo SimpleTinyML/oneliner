@@ -1,5 +1,5 @@
-use super::{Error, Prediction, Result};
 use super::{Aligned, AlignedType};
+use super::{Error, Prediction, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Access {
@@ -44,22 +44,10 @@ impl<const N: usize> TensorSource for [u8; N] {
     }
 }
 
-impl TensorSource for TensorRef {
-    /// Reads an already materialized tensor descriptor.
-    ///
-    /// Input: pointer to a `TensorRef` descriptor slot.
-    /// Output: the descriptor stored in that slot.
-    ///
-    /// Safety: `ptr` must point to an initialized `TensorRef`.
-    unsafe fn tensor_ref_from_raw(ptr: *const Self) -> TensorRef {
-        unsafe { core::ptr::read(ptr) }
-    }
-}
-
 impl<const N: usize> TensorSource for Aligned<AlignedType, [u8; N]> {
     /// Treats an aligned static byte array as a tensor buffer.
     ///
-    /// Input: pointer to `Aligned<A32, [u8; N]>`.
+    /// Input: pointer to `Aligned<AlignedType, [u8; N]>`.
     /// Output: `TensorRef` with the array pointer and fixed length `N`.
     ///
     /// Safety: `ptr` must point to a valid aligned byte array.
@@ -81,7 +69,7 @@ pub struct TensorRange {
 
 /// Converts generated tensor storage into a dispatch-ready `TensorRef`.
 ///
-/// Input: raw pointer to either a static byte array or a `TensorRef` descriptor.
+/// Input: raw pointer to converter-generated static byte-array storage.
 /// Output: `TensorRef` consumed by `TensorRange`.
 ///
 /// Safety: `ptr` must be valid for the concrete `T`.
@@ -89,31 +77,24 @@ pub unsafe fn tensor_ref_from_raw<T: TensorSource>(ptr: *const T) -> TensorRef {
     unsafe { T::tensor_ref_from_raw(ptr) }
 }
 
-/// Binds user input bytes to a generated input descriptor.
+/// Copies user input into generated aligned storage.
 ///
-/// Input: descriptor slot, expected byte length, and user input bytes.
-/// Output: `Ok(())` after the slot points to `input`, or size mismatch error.
+/// # Safety
 ///
-/// Safety: `slot` must point to a valid mutable `TensorRef` descriptor.
-pub unsafe fn bind_static_input(
-    slot: *mut TensorRef,
-    expected_len: usize,
+/// `slot` must point to valid, exclusively writable input storage.
+pub unsafe fn write_static_input<const N: usize>(
+    slot: *mut Aligned<AlignedType, [u8; N]>,
     input: &[u8],
 ) -> Result<()> {
-    if input.len() != expected_len {
+    if input.len() != N {
         return Err(Error::InputSizeMismatch {
             provided: input.len(),
-            expected: expected_len,
+            expected: N,
         });
     }
     unsafe {
-        core::ptr::write(
-            slot,
-            TensorRef {
-                ptr: input.as_ptr() as *mut u8,
-                len: input.len(),
-            },
-        );
+        let destination = core::ptr::addr_of_mut!((*slot)) as *mut u8;
+        core::ptr::copy_nonoverlapping(input.as_ptr(), destination, N);
     }
     Ok(())
 }
@@ -132,8 +113,8 @@ pub unsafe fn read_static_output(src: *const u8, len: usize) -> Prediction<'stat
 ///
 /// Input: closure containing generated command calls.
 /// Output: no value; all effects are performed by the closure.
-pub fn concurrent(commands: impl FnOnce()) {
-    commands();
+pub fn concurrent<T>(commands: impl FnOnce() -> T) -> T {
+    commands()
 }
 
 /// Converts scalar fill values to the byte written by `fill`.
@@ -168,24 +149,71 @@ impl_fill_value!(i8, i16, i32, i64, isize, u8, u16, u32, u64, usize);
 
 /// Fills a generated tensor range with one byte value.
 ///
-/// Input: target tensor range and scalar fill value.
-/// Output: no value; writes into the target memory.
-pub fn fill(target: TensorRange, value: impl FillValue) {
-    let len = clipped_len(target);
+/// # Safety
+///
+/// The tensor pointer must be valid and writable for the declared range.
+pub unsafe fn fill(target: TensorRange, value: impl FillValue) -> Result<()> {
+    let len = checked_len(target)?;
+    if len == 0 {
+        return Ok(());
+    }
     unsafe {
         core::ptr::write_bytes(target.tensor.ptr.add(target.offset), value.to_u8(), len);
     }
+    Ok(())
 }
 
-/// Clips a tensor range length so generated commands cannot run past the tensor.
-///
-/// Input: tensor range with offset and optional length.
-/// Output: byte length available within the referenced tensor.
-pub(crate) fn clipped_len(range: TensorRange) -> usize {
-    let available = range.tensor.len.saturating_sub(range.offset);
-    if range.length == 0 {
+pub(crate) fn checked_len(range: TensorRange) -> Result<usize> {
+    if range.offset > range.tensor.len {
+        return Err(Error::TensorRangeOutOfBounds {
+            offset: range.offset,
+            length: range.length,
+            capacity: range.tensor.len,
+        });
+    }
+    let available = range.tensor.len - range.offset;
+    let length = if range.length == 0 {
         available
     } else {
-        range.length.min(available)
+        range.length
+    };
+    if length > available {
+        return Err(Error::TensorRangeOutOfBounds {
+            offset: range.offset,
+            length,
+            capacity: range.tensor.len,
+        });
+    }
+    Ok(length)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn range(capacity: usize, offset: usize, length: usize) -> TensorRange {
+        TensorRange {
+            tensor: TensorRef {
+                ptr: core::ptr::dangling_mut(),
+                len: capacity,
+            },
+            access: Access::Rw,
+            offset,
+            length,
+        }
+    }
+
+    #[test]
+    fn validates_tensor_ranges() {
+        assert_eq!(checked_len(range(16, 4, 8)), Ok(8));
+        assert_eq!(checked_len(range(16, 4, 0)), Ok(12));
+        assert!(matches!(
+            checked_len(range(16, 17, 0)),
+            Err(Error::TensorRangeOutOfBounds { .. })
+        ));
+        assert!(matches!(
+            checked_len(range(16, 8, 9)),
+            Err(Error::TensorRangeOutOfBounds { .. })
+        ));
     }
 }

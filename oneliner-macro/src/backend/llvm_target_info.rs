@@ -9,6 +9,7 @@
 //! followed by reading the `llvm-target`, `features`, and `cpu` fields from the
 //! emitted JSON.
 
+use std::ffi::OsString;
 use std::fmt;
 use std::process::Command;
 
@@ -24,10 +25,7 @@ pub struct LlvmTargetInfo {
 #[derive(Debug)]
 pub enum TargetInfoError {
     RustcIo(std::io::Error),
-    RustcFailed {
-        status: Option<i32>,
-        stderr: String,
-    },
+    RustcFailed { status: Option<i32>, stderr: String },
     InvalidJson(serde_json::Error),
     MissingLlvmTarget,
 }
@@ -50,7 +48,8 @@ impl fmt::Display for TargetInfoError {
 /// This uses `RUSTC_BOOTSTRAP=1` because `--print target-spec-json` currently
 /// requires `-Z unstable-options`.
 pub fn llvm_target_info_from_rust_triple(target: &str) -> Result<LlvmTargetInfo, TargetInfoError> {
-    let output = Command::new("rustc")
+    let rustc = std::env::var_os("RUSTC").unwrap_or_else(|| OsString::from("rustc"));
+    let output = Command::new(rustc)
         .env("RUSTC_BOOTSTRAP", "1")
         .args([
             "-Z",
