@@ -27,6 +27,5 @@ pub use iree::{
     iree_hal_processor_v0_t, try_dispatch, try_dispatch_with_executor, DispatchFn,
 };
 
-#[cfg(feature = "iree-runtime")]
 pub use aligned::{Aligned, A2, A4, A16, A32, A64};
 pub type AlignedType = A64;

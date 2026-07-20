@@ -4,35 +4,38 @@ mod ariel_os;
 #[cfg(feature = "ariel-os")]
 pub use ariel_os::ArielOsExecutor;
 
-/// A unit of work that can be scheduled by an executor.
-///
-/// Input: owned work item state.
-/// Output: backend-defined result produced by the work item.
-pub trait WorkItem: Send {
-    type Output: Send;
+use super::{DispatchFn, iree_hal_executable_environment_v0_t, iree_hal_executable_dispatch_state_v0_t, iree_hal_executable_workgroup_state_v0_t};
 
-    /// Runs this work item.
-    ///
-    /// Input: owned work item.
-    /// Output: value produced by execution.
-    fn run(self) -> Self::Output;
+#[derive(Clone, Copy)]
+pub enum WorkItem {
+    IREEWorkload {
+        dispatch_fn: DispatchFn,
+        environment: *mut iree_hal_executable_environment_v0_t,
+        dispatch_state: *mut iree_hal_executable_dispatch_state_v0_t,
+        workgroup_state: iree_hal_executable_workgroup_state_v0_t,
+
+    },
 }
 
-impl<F, Output> WorkItem for F
-where
-    F: FnOnce() -> Output + Send,
-    Output: Send,
-{
-    type Output = Output;
-
-    /// Runs a closure-backed work item.
-    ///
-    /// Input: owned closure.
-    /// Output: closure return value.
-    fn run(self) -> Self::Output {
-        self()
+impl WorkItem {
+    pub fn run(self) {
+        match self {
+            WorkItem::IREEWorkload {
+                dispatch_fn,
+                environment,
+                dispatch_state,
+                workgroup_state,
+            } => unsafe {
+                dispatch_fn(
+                    environment,
+                    dispatch_state,
+                    &workgroup_state,
+                );
+            },
+        }
     }
 }
+
 
 /// Synchronously schedules work items for execution.
 ///
@@ -43,9 +46,10 @@ pub trait Executor {
     ///
     /// Input: work item to run.
     /// Output: result returned by the work item.
-    fn schedule<W>(&mut self, item: W) -> W::Output
-    where
-        W: WorkItem;
+    fn schedule(&mut self, item: WorkItem);
+
+    fn wait_job_completion(&mut self);
+
 }
 
 /// Default executor that runs work items immediately in submission order.
@@ -67,12 +71,16 @@ impl Executor for SequentialExecutor {
     ///
     /// Input: work item to execute.
     /// Output: result returned by the work item.
-    fn schedule<W>(&mut self, item: W) -> W::Output
-    where
-        W: WorkItem,
+    fn schedule(&mut self, item: WorkItem)
+
     {
-        item.run()
+        item.run();
     }
+
+    fn wait_job_completion(&mut self) {
+        
+    }
+    
 }
 
 #[cfg(feature = "ariel-os")]

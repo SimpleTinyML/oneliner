@@ -1,10 +1,16 @@
 #![allow(non_camel_case_types)]
 
+#[cfg(feature = "ariel-os")]
+use ariel_os::log as log;
+
+#[cfg(not(feature = "ariel-os"))]
+use log;
+
 use core::ffi::c_void;
 
 use super::buffer::clipped_len;
-use super::{DefaultExecutor, Error, Executor, Result, TensorRange};
-use log;
+use super::{DefaultExecutor, Error, Executor, Result, TensorRange, WorkItem};
+
 pub const MAX_BINDINGS: usize = 32;
 
 pub type iree_hal_executable_import_v0_t =
@@ -23,6 +29,7 @@ pub struct iree_hal_processor_v0_t {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct iree_hal_executable_environment_v0_t {
     pub constants: *const u32,
     pub import_thunk: Option<iree_hal_executable_import_thunk_v0_t>,
@@ -32,6 +39,7 @@ pub struct iree_hal_executable_environment_v0_t {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct iree_hal_executable_dispatch_state_v0_t {
     pub workgroup_size_x: u32,
     pub workgroup_size_y: u32,
@@ -48,6 +56,7 @@ pub struct iree_hal_executable_dispatch_state_v0_t {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct iree_hal_executable_workgroup_state_v0_t {
     pub workgroup_id_x: u32,
     pub workgroup_id_y: u32,
@@ -319,8 +328,11 @@ where
         for y in 0..workload_y {
             for x in 0..workload_x {
                 log::trace!("Dispatching workgroup (x={}, y={}, z={})", x, y, z);
-                executor.schedule(move || {
-                    let workgroup_state = iree_hal_executable_workgroup_state_v0_t {
+                let workitem = WorkItem::IREEWorkload {
+                    dispatch_fn: function,
+                    environment: core::ptr::addr_of!(environment) as *mut iree_hal_executable_environment_v0_t,
+                    dispatch_state: core::ptr::addr_of!(dispatch_state) as *mut iree_hal_executable_dispatch_state_v0_t,
+                    workgroup_state: iree_hal_executable_workgroup_state_v0_t {
                         workgroup_id_x: x,
                         workgroup_id_y: y,
                         workgroup_id_z: z,
@@ -328,19 +340,12 @@ where
                         processor_id: 0,
                         local_memory: core::ptr::null_mut(),
                         local_memory_size: 0,
-                    };
-                    let environment =
-                        environment_ptr as *const iree_hal_executable_environment_v0_t;
-                    let dispatch_state =
-                        dispatch_state_ptr as *const iree_hal_executable_dispatch_state_v0_t;
-                    let status = unsafe { function(environment, dispatch_state, &workgroup_state) };
-                    if status != 0 {
-                        return Err(Error::DispatchFailed { status });
-                    }
-                    Ok(())
-                })?;
+                    },
+                };
+                executor.schedule(workitem);
             }
         }
     }
+    executor.wait_job_completion();
     Ok(())
 }

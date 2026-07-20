@@ -6,4 +6,6 @@ imports:
 
 apps:
   - name: oneliner-ariel-os-iree
-  # - name: oneliner-ariel-os-iree-mcunet
+    selects:
+      - ?multi-core
+      - sw/threading
