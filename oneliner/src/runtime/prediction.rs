@@ -68,7 +68,10 @@ impl Prediction<'static> {
             bytes: PredictionBytes::Owned(bytes),
         }
     }
+}
 
+#[cfg(feature = "alloc")]
+impl<'a> Prediction<'a> {
     /// Converts a prediction into owned bytes.
     ///
     /// Input: prediction that may borrow or own bytes.

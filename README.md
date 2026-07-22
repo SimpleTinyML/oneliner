@@ -4,12 +4,15 @@
 
 ```rust
 use OneLiner::model;
+use OneLiner::runtime::Predict;
 
 #[model("path/to/model.tflite")]
 struct MyModel;
 
 fn main() {
-    let prediction = MyModel::predict(input_data);
+    let mut workspace = MyModelWorkspace::new();
+    let mut model = MyModel::session(&mut workspace);
+    let prediction = model.predict(input_data);
     println!("{} output bytes", prediction.as_bytes().len());
 }
 ```
@@ -67,7 +70,18 @@ struct MyModel;
 For fallible code, use `try_predict`:
 
 ```rust
-let prediction = MyModel::try_predict(input_data)?;
+let mut workspace = MyModelWorkspace::new();
+let mut model = MyModel::session(&mut workspace);
+let prediction = model.try_predict(input_data)?;
+```
+
+The borrowed prediction prevents the same session from being reused while its
+output is still live. Create one workspace per concurrent session. With the
+`alloc` feature, copy the result when it must outlive or be reused independently
+of the session:
+
+```rust
+let prediction = model.try_predict_owned(input_data)?;
 ```
 
 Generated artifact paths are available for debugging:
@@ -144,11 +158,13 @@ impl OneLiner::runtime::MicroflowModel for MyModel {
 }
 ```
 
-The macro still generates the familiar API:
+Microflow models implement `Predict` directly and do not need an IREE
+workspace:
 
 ```rust
-let output = MyModel::predict(input);
-let output = MyModel::try_predict(input)?;
+let mut model = MyModel;
+let output = model.predict(input);
+let output = model.try_predict(input)?;
 ```
 
 Microflow does not use a compiler, generated Rust flow, IREE dispatch helpers,
@@ -167,7 +183,8 @@ directives.
 The `oneliner` runtime crate supports:
 
 - `std` default feature: implements `std::error::Error` and enables `alloc`.
-- `alloc` feature: keeps `Prediction::from_bytes` and `Prediction::into_bytes`.
+- `alloc` feature: enables `Prediction::from_bytes`, `Prediction::into_bytes`,
+  and `Predict::try_predict_owned`.
 - `iree-runtime` feature: enables IREE local executable ABI helpers such as
   `dispatch`, `try_dispatch`, and HAL dispatch-state structs.
 - no default features: pure `no_std` runtime with borrowed output slices.
@@ -177,9 +194,14 @@ The public runtime surface is intentionally small:
 ```rust
 pub trait Predict<Input: ?Sized = [u8]> {
     type Error;
-    type Output;
+    type Output<'prediction>
+    where
+        Self: 'prediction;
 
-    fn try_predict(input: &Input) -> Result<Self::Output, Self::Error>;
+    fn try_predict<'prediction>(
+        &'prediction mut self,
+        input: &Input,
+    ) -> Result<Self::Output<'prediction>, Self::Error>;
 }
 
 pub trait ModelSource {
@@ -197,15 +219,23 @@ pub trait MicroflowModel: ModelSource {
 ```
 
 Microflow can return typed outputs through `MicroflowModel`. OneLiner also
-implements `Predict<[u8]>` for Microflow-backed models.
+implements the stateful `Predict<[u8]>` interface for Microflow-backed model
+values.
 
-In pure `no_std`, `Prediction` is a borrowed view over the generated static
-output buffer:
+In pure `no_std`, every IREE session borrows caller-owned workspace storage and
+`Prediction` borrows that session's output buffer:
 
 ```rust
-let prediction = MyModel::predict(input);
+let mut workspace = MyModelWorkspace::new();
+let mut model = MyModel::session(&mut workspace);
+let prediction = model.predict(input);
 let bytes: &[u8] = prediction.as_bytes();
 ```
+
+The generated flow contains no mutable global model buffers. Model constants
+remain immutable statics, while input, output, and temporary resources are
+fields of the generated workspace. A workspace may be placed in a stack frame,
+static initialization cell, or application-managed memory pool.
 
 The proc-macro, and any built-in IREE compilation it performs, still runs on
 the host during Cargo builds and uses `std`; only the target runtime is
@@ -216,7 +246,7 @@ the host during Cargo builds and uses `std`; only the target runtime is
 - `oneliner/src/runtime/interface.rs`: public runtime traits and shared metadata.
 - `oneliner/src/runtime/microflow.rs`: Microflow runtime trait.
 - `oneliner/src/runtime/prediction.rs`: byte prediction value type.
-- `oneliner/src/runtime/buffer.rs`: generic static-buffer helpers.
+- `oneliner/src/runtime/buffer.rs`: caller-owned aligned-buffer helpers.
 - `oneliner/src/runtime/iree.rs`: optional IREE local executable runtime helpers.
 - `oneliner-macro/src/backend/microflow.rs`: Microflow backend expansion.
 - `oneliner-macro/src/backend/iree.rs`: IREE expansion entry point.

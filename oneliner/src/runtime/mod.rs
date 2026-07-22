@@ -8,13 +8,13 @@ mod prediction;
 mod iree;
 
 pub use buffer::{
-    concurrent, fill, read_static_output, tensor_ref_from_raw, write_static_input, Access,
-    FillValue, TensorRange, TensorRef, TensorSource,
+    concurrent, fill, read_output, write_input, Access,
+    TensorRange, TensorRef, TensorSource, AnyTensorRange, AnyTensor
 };
 #[cfg(feature = "ariel-os")]
 pub use executor::ArielOsExecutor;
 pub use executor::{DefaultExecutor, Executor, SequentialExecutor, WorkItem};
-pub use interface::{Error, ModelArtifacts, ModelSource, Predict, Result};
+pub use interface::{Error, ModelArtifacts, ModelSource, Predict};
 pub use microflow::MicroflowModel;
 pub use prediction::Prediction;
 

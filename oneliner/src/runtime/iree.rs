@@ -7,8 +7,7 @@ use ariel_os::log;
 #[cfg(not(feature = "ariel-os"))]
 use log;
 
-use super::buffer::checked_len;
-use super::{DefaultExecutor, Error, Executor, Result, TensorRange, WorkItem};
+use super::{DefaultExecutor, Error, Executor, TensorRange, WorkItem, AnyTensorRange, AnyTensor, Access};
 use abi::{iree_hal_executable_library_v0_t, IREE_HAL_EXECUTABLE_LIBRARY_VERSION_LATEST};
 use portable_atomic::{AtomicI32, Ordering};
 
@@ -30,7 +29,7 @@ pub const MAX_BINDINGS: usize = 32;
 pub unsafe fn dispatch_fn_from_library(
     query: iree_hal_executable_library_query_fn_t,
     ordinal: usize,
-) -> Result<DispatchFn> {
+) -> Result<DispatchFn, Error> {
     let environment = empty_environment();
     let library = unsafe { query(IREE_HAL_EXECUTABLE_LIBRARY_VERSION_LATEST, &environment) }
         as *const iree_hal_executable_library_v0_t;
@@ -62,7 +61,7 @@ pub unsafe fn dispatch(
     function: DispatchFn,
     params: &[u32],
     workload: &[u32],
-    ranges: &[TensorRange],
+    ranges: &[AnyTensorRange],
 ) {
     unsafe { try_dispatch(function, params, workload, ranges) }.expect("backend dispatch failed");
 }
@@ -77,8 +76,8 @@ pub unsafe fn try_dispatch(
     function: DispatchFn,
     params: &[u32],
     workload: &[u32],
-    ranges: &[TensorRange],
-) -> Result<()> {
+    ranges: &[AnyTensorRange],
+) -> Result<(), Error> {
     let mut executor = DefaultExecutor::default();
     unsafe { try_dispatch_with_executor(&mut executor, function, params, workload, ranges) }
 }
@@ -95,8 +94,8 @@ pub unsafe fn try_dispatch_with_executor<E>(
     function: DispatchFn,
     params: &[u32],
     workload: &[u32],
-    ranges: &[TensorRange],
-) -> Result<()>
+    ranges: &[AnyTensorRange],
+) -> Result<(), Error>
 where
     E: Executor,
 {
@@ -120,9 +119,16 @@ where
     let mut binding_ptrs = [core::ptr::null_mut(); MAX_BINDINGS];
     let mut binding_lengths = [0usize; MAX_BINDINGS];
     for (index, range) in ranges.iter().enumerate() {
-        let len = checked_len(*range)?;
-        binding_ptrs[index] = unsafe { range.tensor.ptr.add(range.offset) as *mut c_void };
-        binding_lengths[index] = len;
+        match range.tensor {
+            AnyTensor::Ref(tensor) => {
+                binding_ptrs[index] = unsafe { tensor.ptr.add(range.offset) as *mut c_void };
+                binding_lengths[index] = range.length;
+            }
+            AnyTensor::Mut(tensor) => {
+                binding_ptrs[index] = unsafe { tensor.ptr.add(range.offset) as *mut c_void };
+                binding_lengths[index] = range.length;   
+            }
+        }
         log::trace!(
             "Binding {}: ptr = {:#x}, length = {}, align16 = {}",
             index,

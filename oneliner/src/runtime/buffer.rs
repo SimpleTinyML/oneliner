@@ -1,5 +1,11 @@
 use super::{Aligned, AlignedType};
-use super::{Error, Prediction, Result};
+use super::{Error, Prediction};
+
+#[cfg(feature = "ariel-os")]
+use ariel_os::log::{debug};
+
+#[cfg(not(feature = "ariel-os"))]
+use log::{debug};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Access {
@@ -11,8 +17,40 @@ pub enum Access {
 
 #[derive(Clone, Copy)]
 pub struct TensorRef {
+    pub ptr: *const u8,
+    pub len: usize,
+}
+
+impl TensorRef {
+    pub fn new(ptr: *const u8, len: usize) -> Self {
+        Self::try_new(ptr, len).expect("invalid tensor reference")
+    }
+
+    fn try_new(ptr: *const u8, len: usize) -> Result<Self, Error> {
+        if ptr.is_null() {
+            return Err(Error::NullPointer);
+        }
+        Ok(Self { ptr, len })
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct TensorMut {
     pub ptr: *mut u8,
     pub len: usize,
+}
+
+impl TensorMut {
+    pub fn new(ptr: *mut u8, len: usize) -> Self {
+        Self::try_new(ptr, len).expect("invalid tensor reference")
+    }
+
+    fn try_new(ptr: *mut u8, len: usize) -> Result<Self, Error> {
+        if ptr.is_null() {
+            return Err(Error::NullPointer);
+        }
+        Ok(Self { ptr, len })
+    }
 }
 
 /// Converts a generated storage item into the `TensorRef` used by dispatch.
@@ -26,7 +64,8 @@ pub trait TensorSource {
     /// Output: tensor pointer and byte length.
     ///
     /// Safety: `ptr` must point to a valid value of `Self`.
-    unsafe fn tensor_ref_from_raw(ptr: *const Self) -> TensorRef;
+    unsafe fn to_tensor_ref(&self) -> TensorRef;
+    unsafe fn to_tensor_mut(&mut self) -> TensorMut;
 }
 
 impl<const N: usize> TensorSource for [u8; N] {
@@ -36,77 +75,143 @@ impl<const N: usize> TensorSource for [u8; N] {
     /// Output: `TensorRef` with the array pointer and fixed length `N`.
     ///
     /// Safety: `ptr` must point to a valid byte array.
-    unsafe fn tensor_ref_from_raw(ptr: *const Self) -> TensorRef {
+    unsafe fn to_tensor_ref(&self) -> TensorRef {
         TensorRef {
-            ptr: ptr as *mut u8,
+            ptr: self as *const u8,
+            len: N,
+        }
+    }
+    unsafe fn to_tensor_mut(&mut self) -> TensorMut {
+        TensorMut {
+            ptr: self as *mut u8,
             len: N,
         }
     }
 }
 
-impl<const N: usize> TensorSource for Aligned<AlignedType, [u8; N]> {
-    /// Treats an aligned static byte array as a tensor buffer.
-    ///
-    /// Input: pointer to `Aligned<AlignedType, [u8; N]>`.
-    /// Output: `TensorRef` with the array pointer and fixed length `N`.
-    ///
-    /// Safety: `ptr` must point to a valid aligned byte array.
-    unsafe fn tensor_ref_from_raw(ptr: *const Self) -> TensorRef {
-        TensorRef {
-            ptr: ptr as *mut u8,
-            len: N,
-        }
-    }
-}
 
 #[derive(Clone, Copy)]
-pub struct TensorRange {
-    pub tensor: TensorRef,
+pub struct TensorRange<T> {
+    pub tensor: T,
     pub access: Access,
     pub offset: usize,
     pub length: usize,
+
 }
 
-/// Converts generated tensor storage into a dispatch-ready `TensorRef`.
-///
-/// Input: raw pointer to converter-generated static byte-array storage.
-/// Output: `TensorRef` consumed by `TensorRange`.
-///
-/// Safety: `ptr` must be valid for the concrete `T`.
-pub unsafe fn tensor_ref_from_raw<T: TensorSource>(ptr: *const T) -> TensorRef {
-    unsafe { T::tensor_ref_from_raw(ptr) }
+#[derive(Clone, Copy)]
+pub enum AnyTensor {
+    Ref(TensorRef),
+    Mut(TensorMut),
 }
 
-/// Copies user input into generated aligned storage.
+impl AnyTensor {
+    pub fn len(&self) -> usize {
+        match self {
+            AnyTensor::Ref(t) => t.len,
+            AnyTensor::Mut(t) => t.len,
+        }
+    }
+}
+
+impl From<TensorRef> for AnyTensor {
+    fn from(t: TensorRef) -> Self {
+        AnyTensor::Ref(t)
+    }
+}
+
+impl From<TensorMut> for AnyTensor {
+    fn from(t: TensorMut) -> Self {
+        AnyTensor::Mut(t)
+    }
+}
+
+
+pub type AnyTensorRange = TensorRange<AnyTensor>;
+
+impl AnyTensorRange {
+    pub fn new(tensor: AnyTensor, access: Access, offset: usize, length: usize) -> Self {
+        Self::try_new(tensor, access, offset, length)
+            .expect("invalid tensor range")
+    }
+
+    pub fn try_new(
+        tensor: AnyTensor,
+        access: Access,
+        offset: usize,
+        length: usize,
+    ) -> Result<Self, Error> {
+        let tensor_len = tensor.len();
+
+        let end = offset
+            .checked_add(length)
+            .ok_or(Error::TensorRangeOutOfBounds { offset, length, capacity: tensor_len })?;
+
+        if end > tensor_len {
+            return Err(Error::TensorRangeOutOfBounds { offset, length, capacity: tensor_len });
+        }
+
+        let access_valid = matches!(
+            (tensor, access),
+            (AnyTensor::Ref(_), Access::Ro)
+                | (AnyTensor::Mut(_), Access::Ro)
+                | (AnyTensor::Mut(_), Access::Wo)
+                | (AnyTensor::Mut(_), Access::Rw)
+        );
+
+        if !access_valid {
+            return Err(Error::InvalidAccess { access, required: match tensor {
+                AnyTensor::Ref(_) => Access::Ro,
+                AnyTensor::Mut(_) => Access::Rw,
+            }});
+        }
+
+        Ok(Self {
+            tensor,
+            access,
+            offset,
+            length,
+        })
+    }
+
+}
+
+/// Copies user input into caller-owned aligned model storage.
 ///
-/// # Safety
-///
-/// `slot` must point to valid, exclusively writable input storage.
-pub unsafe fn write_static_input<const N: usize>(
-    slot: *mut Aligned<AlignedType, [u8; N]>,
+/// Input: exclusively borrowed input storage and user input bytes.
+/// Output: success when the input size exactly matches the generated storage.
+pub fn write_input<const N: usize>(
+    slot: &mut Aligned<AlignedType, [u8; N]>,
     input: &[u8],
-) -> Result<()> {
+) -> Result<(), Error> {
     if input.len() != N {
         return Err(Error::InputSizeMismatch {
             provided: input.len(),
             expected: N,
         });
     }
-    unsafe {
-        let destination = core::ptr::addr_of_mut!((*slot)) as *mut u8;
-        core::ptr::copy_nonoverlapping(input.as_ptr(), destination, N);
+    slot.copy_from_slice(input);
+
+    for i in 0..N {
+        if slot[i] != input[i] {
+            debug!(
+                "write_input: mismatch at index {}: slot={} input={}",
+                i, slot[i], input[i]
+            );
+        }
     }
+
+
     Ok(())
 }
 
-/// Wraps a static output buffer as a `Prediction`.
+/// Borrows caller-owned aligned output storage as a `Prediction`.
 ///
-/// Input: pointer and byte length for the output buffer.
-/// Output: borrowed prediction view over that output memory.
-///
-/// Safety: `src..src + len` must be valid readable memory for the prediction lifetime.
-pub unsafe fn read_static_output(src: *const u8, len: usize) -> Prediction<'static> {
-    Prediction::from_slice(unsafe { core::slice::from_raw_parts(src, len) })
+/// Input: shared borrow of the generated output storage.
+/// Output: prediction whose lifetime is tied to the storage borrow.
+pub fn read_output<const N: usize>(src: &Aligned<AlignedType, [u8; N]>) -> Prediction<'_> {
+    debug!("read_output: output={:?}", &src[..]);
+    Prediction::from_slice(&src[..])
 }
 
 /// Runs a group of generated commands sequentially.
@@ -152,40 +257,24 @@ impl_fill_value!(i8, i16, i32, i64, isize, u8, u16, u32, u64, usize);
 /// # Safety
 ///
 /// The tensor pointer must be valid and writable for the declared range.
-pub unsafe fn fill(target: TensorRange, value: impl FillValue) -> Result<()> {
-    let len = checked_len(target)?;
-    if len == 0 {
-        return Ok(());
+pub unsafe fn fill(target: AnyTensorRange, value: impl FillValue + Copy) -> Result<(), Error> {
+    match target.tensor {
+        AnyTensor::Ref(_) => {
+            return Err(Error::InvalidAccess {
+                access: target.access,
+                required: Access::Rw,
+            });
+        }
+        AnyTensor::Mut(tensor) => {
+            unsafe {
+                core::ptr::write_bytes(tensor.ptr.add(target.offset), value.to_u8(), target.length);
+            }
+        }
     }
-    unsafe {
-        core::ptr::write_bytes(target.tensor.ptr.add(target.offset), value.to_u8(), len);
-    }
+    
     Ok(())
 }
 
-pub(crate) fn checked_len(range: TensorRange) -> Result<usize> {
-    if range.offset > range.tensor.len {
-        return Err(Error::TensorRangeOutOfBounds {
-            offset: range.offset,
-            length: range.length,
-            capacity: range.tensor.len,
-        });
-    }
-    let available = range.tensor.len - range.offset;
-    let length = if range.length == 0 {
-        available
-    } else {
-        range.length
-    };
-    if length > available {
-        return Err(Error::TensorRangeOutOfBounds {
-            offset: range.offset,
-            length,
-            capacity: range.tensor.len,
-        });
-    }
-    Ok(length)
-}
 
 #[cfg(test)]
 mod tests {

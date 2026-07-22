@@ -1,30 +1,57 @@
-pub type Result<T> = core::result::Result<T, Error>;
+// pub type Result<T> = core::result::Result<T, Error>;
 
-/// Common prediction interface implemented by every backend-generated model.
+#[cfg(feature = "alloc")]
+use super::Prediction;
+
+use super::{Access};
+
+/// Common prediction interface implemented by backend model values and sessions.
 ///
 /// Input: a backend-selected input type, usually `[u8]`.
 /// Output: the backend-specific prediction value or an error from `try_predict`.
 pub trait Predict<Input: ?Sized = [u8]> {
     type Error;
-    type Output;
+    type Output<'prediction>
+    where
+        Self: 'prediction;
 
     /// Runs prediction and panics if the backend returns an error.
     ///
     /// Input: any value that can be borrowed as `Input`.
     /// Output: `Self::Output` on success.
-    fn predict<T>(input: T) -> Self::Output
+    fn predict<T>(&mut self, input: T) -> Self::Output<'_>
     where
         T: AsRef<Input>,
         Self::Error: core::fmt::Debug,
     {
-        Self::try_predict(input.as_ref()).expect("OneLiner prediction failed")
+        self.try_predict(input.as_ref())
+            .expect("OneLiner prediction failed")
     }
 
     /// Runs prediction and returns the backend error instead of panicking.
     ///
     /// Input: a borrowed model input value.
     /// Output: `Ok(Self::Output)` on success or `Err(Self::Error)` on failure.
-    fn try_predict(input: &Input) -> core::result::Result<Self::Output, Self::Error>;
+    fn try_predict<'prediction>(
+        &'prediction mut self,
+        input: &Input,
+    ) -> core::result::Result<Self::Output<'prediction>, Self::Error>;
+
+    /// Runs prediction and copies byte output into an owned prediction.
+    ///
+    /// Input: a borrowed model input value.
+    /// Output: owned prediction bytes that remain valid after this predictor is reused.
+    #[cfg(feature = "alloc")]
+    fn try_predict_owned<'prediction>(
+        &'prediction mut self,
+        input: &Input,
+    ) -> core::result::Result<Prediction<'static>, Self::Error>
+    where
+        Self::Output<'prediction>: AsRef<[u8]>,
+    {
+        let output = self.try_predict(input)?;
+        Ok(Prediction::from_bytes(output.as_ref().to_vec()))
+    }
 }
 
 /// Metadata exposed by a model generated with `#[model]`.
@@ -65,6 +92,11 @@ pub enum Error {
     DispatchFailed {
         status: i32,
     },
+    InvalidAccess {
+        access: Access,
+        required: Access,
+    },
+    NullPointer,
 }
 
 impl core::fmt::Display for Error {
@@ -103,7 +135,13 @@ impl core::fmt::Display for Error {
             ),
             Self::DispatchFailed { status } => {
                 write!(f, "backend dispatch returned status {status}")
-            }
+            },
+
+            Self::InvalidAccess { access, required } => write!(
+                f,
+                "tensor access {access:?} is invalid; expected {required:?}"
+            ),
+            Self::NullPointer => write!(f, "tensor pointer is null"),
         }
     }
 }

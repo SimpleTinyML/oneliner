@@ -7,6 +7,11 @@ It builds the model at Rust compile time, links the generated static
 object, runs the generated dispatch flow in a `no_std` Ariel OS thread, and exits
 successfully only when the output bytes match the expected result.
 
+The example places a generated `ModelWorkspace` in a `ConstStaticCell` and
+creates a `ModelSession` from its unique mutable reference. Mutable input,
+output, and temporary buffers belong to that workspace instead of global
+storage, so independent workspace cells can run predictions concurrently.
+
 The active model is `models/lenet5_quantized.tflite`:
 
 - input: 28 x 28 x 4 bytes

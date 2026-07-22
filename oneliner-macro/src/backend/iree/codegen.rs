@@ -7,7 +7,10 @@ use super::IreeArtifacts;
 
 pub(super) fn expand(input_struct: ItemStruct, artifacts: IreeArtifacts) -> TokenStream {
     let struct_ident = &input_struct.ident;
+    let struct_vis = &input_struct.vis;
     let module_ident = format_ident!("__oneliner_iree_{}", rust_ident(&struct_ident.to_string()));
+    let workspace_ident = format_ident!("{}Workspace", struct_ident);
+    let session_ident = format_ident!("{}Session", struct_ident);
     let paths = &artifacts.paths;
     let flow_rs = path_lit(&paths.flow_rs);
     let model_path = path_lit(&paths.model);
@@ -25,10 +28,7 @@ pub(super) fn expand(input_struct: ItemStruct, artifacts: IreeArtifacts) -> Toke
         |binding| {
             let ident = &binding.static_ident;
             quote! {
-                unsafe {
-                    let slot = core::ptr::addr_of_mut!(#module_ident::#ident);
-                    ::OneLiner::runtime::write_static_input(slot, input)?;
-                }
+                ::OneLiner::runtime::write_input(&mut self.workspace.#ident, input)?;
             }
         },
     );
@@ -58,10 +58,9 @@ pub(super) fn expand(input_struct: ItemStruct, artifacts: IreeArtifacts) -> Toke
         mod #module_ident {
             use ::OneLiner::runtime::{
                 concurrent, dispatch_fn_from_library, fill, try_dispatch, Access, Aligned,
-                AlignedType, TensorRange, iree_hal_executable_environment_v0_t,
+                AlignedType, AnyTensorRange, iree_hal_executable_environment_v0_t, TensorSource, Error,
                 iree_hal_executable_library_header_t, iree_hal_executable_library_query_fn_t,
             };
-            use ::OneLiner::tensor_ref;
 
             unsafe extern "C" {
                 pub unsafe fn #query_fn(
@@ -73,6 +72,21 @@ pub(super) fn expand(input_struct: ItemStruct, artifacts: IreeArtifacts) -> Toke
             static QUERY_FN_PTR: iree_hal_executable_library_query_fn_t = #query_fn;
 
             include!(#flow_rs);
+        }
+
+        #struct_vis type #workspace_ident = #module_ident::Workspace;
+
+        #struct_vis struct #session_ident<'workspace> {
+            workspace: &'workspace mut #workspace_ident,
+        }
+
+        impl #struct_ident {
+            /// Creates an independently reusable prediction session over caller-owned storage.
+            pub fn session<'workspace>(
+                workspace: &'workspace mut #workspace_ident,
+            ) -> #session_ident<'workspace> {
+                #session_ident { workspace }
+            }
         }
 
         impl ::OneLiner::runtime::ModelSource for #struct_ident {
@@ -92,17 +106,21 @@ pub(super) fn expand(input_struct: ItemStruct, artifacts: IreeArtifacts) -> Toke
             };
         }
 
-        impl ::OneLiner::runtime::Predict<[u8]> for #struct_ident {
+        impl ::OneLiner::runtime::Predict<[u8]> for #session_ident<'_> {
             type Error = ::OneLiner::runtime::Error;
-            type Output = ::OneLiner::runtime::Prediction<'static>;
+            type Output<'prediction> = ::OneLiner::runtime::Prediction<'prediction>
+            where
+                Self: 'prediction;
 
-            fn try_predict(input: &[u8]) -> ::core::result::Result<Self::Output, Self::Error> {
+            fn try_predict<'prediction>(
+                &'prediction mut self,
+                input: &[u8],
+            ) -> ::core::result::Result<Self::Output<'prediction>, Self::Error> {
                 #input_write
-                #(#module_ident::#execute_fns()?;)*
-                Ok(unsafe {
-                    let src = core::ptr::addr_of!(#module_ident::#output_ident) as *const u8;
-                    ::OneLiner::runtime::read_static_output(src, #output_size)
-                })
+                #(#module_ident::#execute_fns(&mut *self.workspace)?;)*
+                Ok(::OneLiner::runtime::read_output(
+                    &self.workspace.#output_ident,
+                ))
             }
         }
     }

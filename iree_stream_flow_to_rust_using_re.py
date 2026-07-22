@@ -776,23 +776,41 @@ def bytes_to_rust_array(data: bytes, indent: str = "    ", per_line: int = 16) -
 
 def render_resource_static(binding: ResourceBinding, constant_blobs: dict[str, ConstantBlob]) -> list[str]:
     name = const_ident(binding_name(binding))
+    if binding.role != "constant":
+        raise StreamExtractionError(f"mutable resource {binding.arg} must be stored in Workspace")
+    if binding.constant_name and binding.constant_name in constant_blobs:
+        blob = constant_blobs[binding.constant_name]
+        lines = [f"pub static {name}: Aligned<AlignedType,[u8; {blob.size}]> = Aligned(["]
+        lines.extend(bytes_to_rust_array(blob.data))
+        lines.append("]);")
+        return lines
+    raise StreamExtractionError(f"constant {binding.arg} could not be materialized")
+
+
+def render_workspace_field(binding: ResourceBinding) -> str:
+    name = const_ident(binding_name(binding))
     if binding.role == "constant":
-        if binding.constant_name and binding.constant_name in constant_blobs:
-            blob = constant_blobs[binding.constant_name]
-            lines = [f"pub static {name}: Aligned<AlignedType,[u8; {blob.size}]> = Aligned(["]
-            lines.extend(bytes_to_rust_array(blob.data))
-            lines.append("]);")
-            return lines
-        raise StreamExtractionError(f"constant {binding.arg} could not be materialized")
+        raise StreamExtractionError(f"constant resource {binding.arg} cannot be a Workspace field")
 
     if binding.size is None:
         raise StreamExtractionError(
             f"resource {binding.arg} size expression {binding.size_expr} could not be resolved"
         )
-    return [f"pub static mut {name}: Aligned<AlignedType, [u8; {binding.size}]> = Aligned([0; {binding.size}]);"]
+    return f"pub(super) {name}: Aligned<AlignedType, [u8; {binding.size}]>,"
 
 
-def render_tensor_range(item: TensorRange) -> str:
+def render_workspace_initializer(binding: ResourceBinding) -> str:
+    name = const_ident(binding_name(binding))
+    if binding.role == "constant":
+        raise StreamExtractionError(f"constant resource {binding.arg} cannot initialize Workspace")
+    if binding.size is None:
+        raise StreamExtractionError(
+            f"resource {binding.arg} size expression {binding.size_expr} could not be resolved"
+        )
+    return f"{name}: Aligned([0; {binding.size}]),"
+
+
+def render_tensor_range(item: TensorRange, workspace_names: frozenset[str] = frozenset()) -> str:
     access = {"ro": "Ro", "wo": "Wo", "rw": "Rw"}.get(item.access, "Unknown")
     if item.offset is None or item.length is None:
         raise StreamExtractionError(
@@ -800,14 +818,20 @@ def render_tensor_range(item: TensorRange) -> str:
         )
     offset = item.offset
     length = item.length
-    tensor_ref = f"tensor_ref!({const_ident(item.tensor_name)})"
+    storage_name = const_ident(item.tensor_name)
+    storage = f"(*workspace.{storage_name}).to_tensor_mut()" if item.tensor_name in workspace_names else f"(*{storage_name}).to_tensor_ref()"
+    # tensor_ref = f"tensor_ref!({storage})"
     return (
-        f"TensorRange {{ tensor: {tensor_ref}, access: Access::{access}, "
+        f"AnyTensorRange {{ tensor: {storage}.into(), access: Access::{access}, "
         f"offset: {offset}, length: {length} }}"
     )
 
 
-def render_command(command: Any, indent: str) -> list[str]:
+def render_command(
+    command: Any,
+    indent: str,
+    workspace_names: frozenset[str] = frozenset(),
+) -> list[str]:
     out: list[str] = []
     if isinstance(command, DispatchCall):
         if (
@@ -823,18 +847,18 @@ def render_command(command: Any, indent: str) -> list[str]:
             f"{indent}    try_dispatch(dispatch_fn_from_library(QUERY_FN_PTR, {command.ordinal})?, &[{params}], &[{workload}], &["
         )
         for item in command.ranges:
-            out.append(f"{indent}        {render_tensor_range(item)},")
+            out.append(f"{indent}        {render_tensor_range(item, workspace_names)},")
         out.append(f"{indent}    ])?;")
         out.append(f"{indent}}}")
     elif isinstance(command, FillCommand):
         if command.value is None:
             raise StreamExtractionError(f"unresolved fill value {command.value_expr}")
-        rendered = render_tensor_range(command.target)
+        rendered = render_tensor_range(command.target, workspace_names)
         out.append(f"{indent}unsafe {{ fill({rendered}, {command.value})?; }}")
     elif isinstance(command, ConcurrentCommand):
         out.append(f"{indent}concurrent(|| {{")
         for child in command.commands:
-            out.extend(render_command(child, indent + "    "))
+            out.extend(render_command(child, indent + "    ", workspace_names))
         out.append(f"{indent}    Ok(())")
         out.append(f"{indent}}})?;")
     return out
@@ -847,23 +871,55 @@ def render_rust(executes: list[CmdExecute], constant_blobs: dict[str, ConstantBl
     ]
 
     emitted: set[str] = set()
+    bindings: list[ResourceBinding] = []
     for execute in executes:
         for binding in execute.resources:
             name = binding_name(binding)
             if name in emitted:
                 continue
             emitted.add(name)
-            out.extend(render_resource_static(binding, constant_blobs))
-            out.append("")
+            bindings.append(binding)
+
+    constant_bindings = [binding for binding in bindings if binding.role == "constant"]
+    workspace_bindings = [binding for binding in bindings if binding.role != "constant"]
+    workspace_names = frozenset(binding_name(binding) for binding in workspace_bindings)
+
+    for binding in constant_bindings:
+        out.extend(render_resource_static(binding, constant_blobs))
+        out.append("")
+
+    out.append("pub struct Workspace {")
+    for binding in workspace_bindings:
+        out.append(f"    {render_workspace_field(binding)}")
+    out.append("}")
+    out.append("")
+    out.append("impl Workspace {")
+    out.append("    pub const fn new() -> Self {")
+    out.append("        Self {")
+    for binding in workspace_bindings:
+        out.append(f"            {render_workspace_initializer(binding)}")
+    out.append("        }")
+    out.append("    }")
+    out.append("}")
+    out.append("")
+    out.append("impl Default for Workspace {")
+    out.append("    fn default() -> Self {")
+    out.append("        Self::new()")
+    out.append("    }")
+    out.append("}")
+    out.append("")
 
     for execute in executes:
-        out.append(f"pub fn {rust_ident(execute.name)}() -> ::OneLiner::runtime::Result<()> {{")
+        out.append(
+            f"pub fn {rust_ident(execute.name)}(workspace: &mut Workspace) "
+            "-> Result<(), Error> {"
+        )
         if execute.line_no is not None:
             out.append(f"    // source MLIR line: {execute.line_no}")
         if execute.result:
             out.append(f"    // stream.cmd.execute result timepoint: {execute.result}")
         for command in execute.commands:
-            out.extend(render_command(command, "    "))
+            out.extend(render_command(command, "    ", workspace_names))
         out.append("    Ok(())")
         out.append("}")
         out.append("")

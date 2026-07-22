@@ -18,7 +18,7 @@ class FlowConverterTests(unittest.TestCase):
         self.assertEqual(CONVERTER.rust_ident("gen"), "gen_")
         self.assertEqual(CONVERTER.rust_ident("9-model.value"), "v_9_model_value")
 
-    def test_metadata_contains_rendered_static_identifier(self):
+    def test_metadata_contains_rendered_workspace_identifier(self):
         binding = CONVERTER.ResourceBinding(
             arg="%arg-0",
             source="%source",
@@ -31,9 +31,17 @@ class FlowConverterTests(unittest.TestCase):
         rendered = CONVERTER.dataclass_to_json(binding)
 
         self.assertEqual(rendered["static_ident"], "INPUT_ARG_0")
-        self.assertIn("Aligned<AlignedType", CONVERTER.render_resource_static(binding, {})[0])
+        self.assertIn("Aligned<AlignedType", CONVERTER.render_workspace_field(binding))
 
     def test_generated_execute_function_propagates_errors(self):
+        binding = CONVERTER.ResourceBinding(
+            arg="%arg0",
+            source="%source",
+            kind="transient",
+            size_expr="16",
+            size=16,
+            role="temporary",
+        )
         dispatch = CONVERTER.DispatchCall(
             kind="dispatch",
             callee="@main",
@@ -42,20 +50,35 @@ class FlowConverterTests(unittest.TestCase):
             ordinal=0,
             params=[],
             param_values=[],
-            ranges=[],
+            ranges=[
+                CONVERTER.TensorRange(
+                    access="rw",
+                    arg="%arg0",
+                    kind="transient",
+                    tensor_name="temp_arg0",
+                    offset_expr="0",
+                    offset=0,
+                    length_expr="16",
+                    length=16,
+                )
+            ],
             workload=(1, 1, 1),
         )
         execute = CONVERTER.CmdExecute(
             name="cmd_execute_0",
             result=None,
             line_no=1,
-            resources=[],
+            resources=[binding],
             commands=[dispatch],
         )
 
         rendered = CONVERTER.render_rust([execute], {})
 
         self.assertIn("-> ::OneLiner::runtime::Result<()>", rendered)
+        self.assertIn("pub struct Workspace", rendered)
+        self.assertIn("workspace: &mut Workspace", rendered)
+        self.assertIn("tensor_ref!(workspace.TEMP_ARG0)", rendered)
+        self.assertNotIn("static mut", rendered)
         self.assertIn("dispatch_fn_from_library(QUERY_FN_PTR, 0)?", rendered)
         self.assertIn("])?;", rendered)
 

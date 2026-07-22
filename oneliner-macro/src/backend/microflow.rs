@@ -39,13 +39,18 @@ pub fn expand(input_struct: ItemStruct, model_path: PathBuf) -> proc_macro2::Tok
             #struct_ident: ::OneLiner::runtime::MicroflowModel,
         {
             type Error = <#struct_ident as ::OneLiner::runtime::MicroflowModel>::Error;
-            type Output = <#struct_ident as ::OneLiner::runtime::MicroflowModel>::Output;
+            type Output<'prediction> = <#struct_ident as ::OneLiner::runtime::MicroflowModel>::Output
+            where
+                Self: 'prediction;
 
             /// Runs prediction through the user-provided Microflow backend hook.
             ///
             /// Input: model input bytes.
             /// Output: backend-defined prediction output or error.
-            fn try_predict(input: &[u8]) -> ::core::result::Result<Self::Output, Self::Error> {
+            fn try_predict<'prediction>(
+                &'prediction mut self,
+                input: &[u8],
+            ) -> ::core::result::Result<Self::Output<'prediction>, Self::Error> {
                 <#struct_ident as ::OneLiner::runtime::MicroflowModel>::try_predict_microflow(input)
             }
         }

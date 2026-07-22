@@ -36,5 +36,10 @@ struct IreeArtifacts {
 
 pub fn expand(input_struct: syn::ItemStruct, model_path: PathBuf) -> syn::Result<TokenStream> {
     let artifacts = artifacts::build(&input_struct.ident, model_path)?;
-    Ok(codegen::expand(input_struct, artifacts))
+
+    let expanded = codegen::expand(input_struct, artifacts);
+    // eprintln!("generated:\n{expanded}");
+    Ok(expanded.into())
+   
+    
 }

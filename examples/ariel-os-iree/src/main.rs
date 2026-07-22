@@ -3,17 +3,20 @@
 
 use ariel_os::debug::{exit, ExitCode};
 use ariel_os::log::{error, info};
+use ariel_os::reexports::static_cell::ConstStaticCell;
 use ariel_os::time;
 
 use OneLiner::model;
-use OneLiner::runtime::{ModelSource, Predict, Aligned, AlignedType};
-
+use OneLiner::runtime::{Aligned, AlignedType, ModelSource, Predict};
 
 #[model("models/mcunet-10fps_vww.tflite", backend = "iree")]
 struct Model;
 const INPUT_LEN: usize = 64 * 64 * 3;
 static INPUT: [u8; INPUT_LEN] = [7; INPUT_LEN];
 const EXPECTED: [u8; 2] = [4, 251];
+
+static WORKSPACE: ConstStaticCell<ModelWorkspace> =
+    ConstStaticCell::new(ModelWorkspace::new());
 
 
 // #[model("models/lenet5_quantized.tflite", backend = "iree")]
@@ -39,8 +42,9 @@ fn main() {
         error!("Model validation failed: unexpected artifact sizes");
         exit(ExitCode::FAILURE);
     }
+    let mut model = Model::session(WORKSPACE.take());
     let time_begin_us = time::Instant::now().as_micros();
-    let prediction = Model::try_predict(&INPUT[..]);
+    let prediction = model.try_predict(&INPUT[..]);
     let time_end_us = time::Instant::now().as_micros();
     info!("Model inference time: {:?} us", time_end_us - time_begin_us);
 
@@ -55,6 +59,12 @@ fn main() {
                 "Model validation failed: expected {} output bytes, received {} bytes with different contents",
                 EXPECTED.len(),
                 actual.len()
+            );
+
+            error!(
+                "EXPECTED: [{}, {}], received: [{}, {}]",
+                EXPECTED[0], EXPECTED[1],
+                actual[0], actual[1]
             );
             exit(ExitCode::FAILURE);
         }
