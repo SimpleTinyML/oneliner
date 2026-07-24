@@ -3,6 +3,7 @@ use super::Prediction;
 
 use super::{Access, Aligned, AlignedType};
 
+#[cfg(feature = "ndarray")]
 use ndarray::{ArrayView4, ArrayViewMut4};
 
 pub type Shape4D = (usize, usize, usize, usize);
@@ -77,22 +78,33 @@ impl<T, const D1: usize, const D2: usize, const D3: usize, const D4: usize>
     pub const fn dim(&self) -> Shape {
         Self::SHAPE
     }
-
+    
+    #[cfg(feature = "ndarray")]
     pub fn view(&self) -> ArrayView4<'_, T> {
         ArrayView4::from_shape(Self::SHAPE, self.as_slice())
             .expect("Tensor4D shape must match its storage")
     }
-
+    
+    #[cfg(feature = "ndarray")]
     pub fn view_mut(&mut self) -> ArrayViewMut4<'_, T> {
         ArrayViewMut4::from_shape(Self::SHAPE, self.as_slice_mut())
             .expect("Tensor4D shape must match its storage")
     }
 
+    #[cfg(feature = "ndarray")]
     pub fn fill(&mut self, value: T)
     where
         T: Clone,
     {
         self.view_mut().fill(value);
+    }
+    
+    #[cfg(not(feature = "ndarray"))]
+    pub fn fill(&mut self, value: T)
+    where
+        T: Clone,
+    {
+        self.as_slice_mut().fill(value);
     }
 }
 
