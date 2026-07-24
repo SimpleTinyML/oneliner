@@ -1,9 +1,32 @@
-// pub type Result<T> = core::result::Result<T, Error>;
-
 #[cfg(feature = "alloc")]
 use super::Prediction;
 
 use super::{Access};
+
+use ndarray::{Array4};
+
+
+pub type Tensor4D<T> = Array4<T>;
+
+pub type Shape4D = (usize, usize, usize, usize);
+
+pub type Shape = Shape4D;
+
+pub type Tensor<T> = Tensor4D<T>;
+
+pub trait ModelInference {
+    type InputTensor;
+    type OutputTensor;
+
+    fn run(
+        &mut self,
+        input: &Self::InputTensor,
+    ) -> Self::OutputTensor;
+
+    fn create_input_tensor() -> Self::InputTensor;
+
+}
+
 
 /// Common prediction interface implemented by backend model values and sessions.
 ///

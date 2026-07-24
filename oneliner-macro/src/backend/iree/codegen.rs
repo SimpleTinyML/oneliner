@@ -35,7 +35,6 @@ pub(super) fn expand(input_struct: ItemStruct, artifacts: IreeArtifacts) -> Toke
     let output_ident = &artifacts.output.static_ident;
 
     quote! {
-        use ::OneLiner::runtime::Predict as _;
 
         #input_struct
 
@@ -55,13 +54,16 @@ pub(super) fn expand(input_struct: ItemStruct, artifacts: IreeArtifacts) -> Toke
             unused_mut,
             unused_variables
         )]
+
+
         mod #module_ident {
+
             use ::OneLiner::runtime::{
                 concurrent, dispatch_fn_from_library, fill, try_dispatch, Access, Aligned,
                 AlignedType, AnyBufferRange, iree_hal_executable_environment_v0_t, BufferSource, Error,
                 iree_hal_executable_library_header_t, iree_hal_executable_library_query_fn_t,
             };
-
+            
             unsafe extern "C" {
                 pub unsafe fn #query_fn(
                     max_version: u32,

@@ -14,7 +14,7 @@ pub use buffer::{
 #[cfg(feature = "ariel-os")]
 pub use executor::ArielOsExecutor;
 pub use executor::{DefaultExecutor, Executor, SequentialExecutor, WorkItem};
-pub use interface::{Error, ModelArtifacts, ModelSource, Predict};
+pub use interface::{Error, ModelArtifacts, ModelSource, Predict, Tensor, Shape, ModelInference,};
 pub use microflow::MicroflowModel;
 pub use prediction::Prediction;
 
