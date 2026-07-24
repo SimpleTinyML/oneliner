@@ -9,12 +9,15 @@ mod iree;
 
 pub use buffer::{
     concurrent, fill, Access,
-    BufferRange, Buffer, BufferSource, AnyBufferRange, AnyBuffer
+    BufferRange, Buffer, BufferMut, BufferSource, AnyBufferRange, AnyBuffer
 };
 #[cfg(feature = "ariel-os")]
 pub use executor::ArielOsExecutor;
 pub use executor::{DefaultExecutor, Executor, SequentialExecutor, WorkItem};
-pub use interface::{Error, ModelArtifacts, ModelSource, Predict, Tensor, Shape, ModelInference,};
+pub use interface::{
+    Error, ModelArtifacts, ModelInference, ModelSource, Predict, Shape, Tensor, Tensor4D,
+    TensorArray,
+};
 pub use microflow::MicroflowModel;
 pub use prediction::Prediction;
 

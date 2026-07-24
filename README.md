@@ -69,8 +69,11 @@ Select a backend explicitly:
 struct MyModel;
 ```
 
-IREE model sessions use typed four-dimensional ndarray tensors. The macro
-derives both element types and shapes from the model's `@main` signature:
+IREE model sessions use typed, allocation-free four-dimensional tensors. The
+macro derives the element type and four const dimensions from the model's
+`@main` signature. Each tensor owns an aligned nested array and exposes ndarray
+views with `view()` and `view_mut()`. `Tensor::from_array(...)` can move an
+existing nested array directly into the tensor:
 
 ```rust
 let mut workspace = MyModelWorkspace::new();
@@ -227,7 +230,7 @@ implements the stateful `Predict<[u8]>` interface for Microflow-backed model
 values.
 
 Every IREE session borrows caller-owned workspace storage, while inference
-accepts and returns typed `Tensor<T>` values:
+accepts and returns typed `Tensor<T, D1, D2, D3, D4>` values:
 
 ```rust
 let mut workspace = MyModelWorkspace::new();
@@ -238,9 +241,10 @@ let output = model.run(&input);
 ```
 
 The generated flow contains no mutable global model buffers. Model constants
-remain immutable statics, while input, output, and temporary resources are
-fields of the generated workspace. A workspace may be placed in a stack frame,
-static initialization cell, or application-managed memory pool.
+remain immutable statics, input and output resources bind directly to the
+aligned arrays owned by the tensors passed through `ModelInference`, and only
+temporary resources are fields of the generated workspace. Tensor creation and
+inference do not require a global allocator.
 
 The proc-macro, and any built-in IREE compilation it performs, still runs on
 the host during Cargo builds and uses `std`; only the target runtime is

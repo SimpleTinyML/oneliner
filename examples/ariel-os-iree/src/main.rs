@@ -47,7 +47,7 @@ fn main() {
     let time_end_us = time::Instant::now().as_micros();
     info!("Model inference time: {:?} us", time_end_us - time_begin_us);
 
-    let actual = output.as_slice().expect("output tensor is contiguous");
+    let actual = output.as_slice();
     if actual == EXPECTED {
         info!("Model IREE validation passed");
         exit(ExitCode::SUCCESS);

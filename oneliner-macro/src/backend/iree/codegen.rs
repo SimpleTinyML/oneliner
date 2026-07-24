@@ -22,16 +22,10 @@ pub(super) fn expand(input_struct: ItemStruct, artifacts: IreeArtifacts) -> Toke
     let output_size = artifacts.output.size;
     let execute_fns = &artifacts.execute_fns;
     let query_fn = &artifacts.query_fn;
-    let input_ident = &artifacts.input.static_ident;
-    let output_ident = &artifacts.output.static_ident;
     let input_type = artifacts.input_tensor.element_type.rust_tokens();
     let output_type = artifacts.output_tensor.element_type.rust_tokens();
-    let input_element_size = artifacts.input_tensor.element_type.byte_width();
-    let output_element_size = artifacts.output_tensor.element_type.byte_width();
     let [input_d0, input_d1, input_d2, input_d3] = artifacts.input_tensor.shape;
     let [output_d0, output_d1, output_d2, output_d3] = artifacts.output_tensor.shape;
-    let input_shape = quote!((#input_d0, #input_d1, #input_d2, #input_d3));
-    let output_shape = quote!((#output_d0, #output_d1, #output_d2, #output_d3));
 
     quote! {
 
@@ -59,8 +53,9 @@ pub(super) fn expand(input_struct: ItemStruct, artifacts: IreeArtifacts) -> Toke
 
             use ::OneLiner::runtime::{
                 concurrent, dispatch_fn_from_library, fill, try_dispatch, Access, Aligned,
-                AlignedType, AnyBufferRange, iree_hal_executable_environment_v0_t, BufferSource, Error,
-                iree_hal_executable_library_header_t, iree_hal_executable_library_query_fn_t,
+                AlignedType, AnyBufferRange, Buffer, BufferMut, BufferSource, Error,
+                iree_hal_executable_environment_v0_t, iree_hal_executable_library_header_t,
+                iree_hal_executable_library_query_fn_t,
             };
 
             unsafe extern "C" {
@@ -108,47 +103,46 @@ pub(super) fn expand(input_struct: ItemStruct, artifacts: IreeArtifacts) -> Toke
         }
 
         impl ::OneLiner::runtime::ModelInference for #session_ident<'_> {
-            type InputTensor = ::OneLiner::runtime::Tensor<#input_type>;
-            type OutputTensor = ::OneLiner::runtime::Tensor<#output_type>;
+            type InputTensor = ::OneLiner::runtime::Tensor<
+                #input_type,
+                #input_d0,
+                #input_d1,
+                #input_d2,
+                #input_d3,
+            >;
+            type OutputTensor = ::OneLiner::runtime::Tensor<
+                #output_type,
+                #output_d0,
+                #output_d1,
+                #output_d2,
+                #output_d3,
+            >;
 
             fn create_input_tensor() -> Self::InputTensor {
-                ::OneLiner::runtime::Tensor::<#input_type>::zeros(#input_shape)
+                Self::InputTensor::filled(0 as #input_type)
             }
 
             fn run(&mut self, input: &Self::InputTensor) -> Self::OutputTensor {
-                assert_eq!(
-                    input.dim(),
-                    #input_shape,
-                    "OneLiner input tensor shape mismatch",
+                let input_buffer = ::OneLiner::runtime::Buffer::new(
+                    input.as_ptr().cast::<u8>(),
+                    input.byte_len(),
                 );
 
-                let mut input_elements = input.iter();
-                for destination in self.workspace.#input_ident.chunks_exact_mut(#input_element_size) {
-                    let value = input_elements
-                        .next()
-                        .expect("OneLiner input tensor contains too few elements");
-                    destination.copy_from_slice(&value.to_ne_bytes());
-                }
-                assert!(
-                    input_elements.next().is_none(),
-                    "OneLiner input tensor contains too many elements",
+                let mut output = Self::OutputTensor::filled(0 as #output_type);
+                let output_buffer = ::OneLiner::runtime::BufferMut::new(
+                    output.as_mut_ptr().cast::<u8>(),
+                    output.byte_len(),
                 );
 
                 #(
-                    #module_ident::#execute_fns(&mut *self.workspace)
+                    #module_ident::#execute_fns(
+                        &mut *self.workspace,
+                        input_buffer,
+                        output_buffer,
+                    )
                         .expect("OneLiner inference dispatch failed");
                 )*
 
-                let mut output =
-                    ::OneLiner::runtime::Tensor::<#output_type>::zeros(#output_shape);
-                for (value, source) in output
-                    .iter_mut()
-                    .zip(self.workspace.#output_ident.chunks_exact(#output_element_size))
-                {
-                    let mut bytes = [0u8; #output_element_size];
-                    bytes.copy_from_slice(source);
-                    *value = <#output_type>::from_ne_bytes(bytes);
-                }
                 output
             }
         }

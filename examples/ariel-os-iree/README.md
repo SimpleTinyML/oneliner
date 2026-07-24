@@ -8,14 +8,15 @@ object, runs the generated dispatch flow in a `no_std` Ariel OS thread, and exit
 successfully only when the typed output tensor matches the expected result.
 
 The example places a generated `ModelWorkspace` in a `ConstStaticCell` and
-creates a `ModelSession` from its unique mutable reference. Mutable input,
-output, and temporary buffers belong to that workspace instead of global
-storage, so independent workspace cells can run predictions concurrently.
+creates a `ModelSession` from its unique mutable reference. The input and output
+bindings point directly at tensor values created locally in `main`, while only
+temporary buffers belong to the workspace. Independent workspace cells can
+therefore run predictions concurrently.
 
 The active model is `models/mcunet-10fps_vww.tflite`:
 
-- input: `Tensor<i8>` with shape `(1, 64, 64, 3)`
-- output: `Tensor<i8>` with normalized shape `(1, 1, 1, 2)`
+- input: `Tensor<i8, 1, 64, 64, 3>`
+- output: `Tensor<i8, 1, 1, 1, 2>`
 - expected validation: input elements filled with `7` -> `[4, -5]`
 
 ## Build

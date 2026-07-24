@@ -789,8 +789,10 @@ def render_resource_static(binding: ResourceBinding, constant_blobs: dict[str, C
 
 def render_workspace_field(binding: ResourceBinding) -> str:
     name = const_ident(binding_name(binding))
-    if binding.role == "constant":
-        raise StreamExtractionError(f"constant resource {binding.arg} cannot be a Workspace field")
+    if binding.role != "temporary":
+        raise StreamExtractionError(
+            f"{binding.role} resource {binding.arg} cannot be a Workspace field"
+        )
 
     if binding.size is None:
         raise StreamExtractionError(
@@ -801,8 +803,10 @@ def render_workspace_field(binding: ResourceBinding) -> str:
 
 def render_workspace_initializer(binding: ResourceBinding) -> str:
     name = const_ident(binding_name(binding))
-    if binding.role == "constant":
-        raise StreamExtractionError(f"constant resource {binding.arg} cannot initialize Workspace")
+    if binding.role != "temporary":
+        raise StreamExtractionError(
+            f"{binding.role} resource {binding.arg} cannot initialize Workspace"
+        )
     if binding.size is None:
         raise StreamExtractionError(
             f"resource {binding.arg} size expression {binding.size_expr} could not be resolved"
@@ -810,7 +814,11 @@ def render_workspace_initializer(binding: ResourceBinding) -> str:
     return f"{name}: Aligned([0; {binding.size}]),"
 
 
-def render_tensor_range(item: TensorRange, workspace_names: frozenset[str] = frozenset()) -> str:
+def render_tensor_range(
+    item: TensorRange,
+    workspace_names: frozenset[str] = frozenset(),
+    external_roles: dict[str, str] | None = None,
+) -> str:
     access = {"ro": "Ro", "wo": "Wo", "rw": "Rw"}.get(item.access, "Unknown")
     if item.offset is None or item.length is None:
         raise StreamExtractionError(
@@ -819,8 +827,15 @@ def render_tensor_range(item: TensorRange, workspace_names: frozenset[str] = fro
     offset = item.offset
     length = item.length
     storage_name = const_ident(item.tensor_name)
-    storage = f"(*workspace.{storage_name}).to_buffer_mut()" if item.tensor_name in workspace_names else f"(*{storage_name}).to_buffer_ref()"
-    # tensor_ref = f"tensor_ref!({storage})"
+    role = (external_roles or {}).get(item.tensor_name)
+    if item.tensor_name in workspace_names:
+        storage = f"(*workspace.{storage_name}).to_buffer_mut()"
+    elif role == "input":
+        storage = "input"
+    elif role == "output":
+        storage = "output"
+    else:
+        storage = f"(*{storage_name}).to_buffer_ref()"
     return (
         f"AnyBufferRange {{ buffer: {storage}.into(), access: Access::{access}, "
         f"offset: {offset}, length: {length} }}"
@@ -831,6 +846,7 @@ def render_command(
     command: Any,
     indent: str,
     workspace_names: frozenset[str] = frozenset(),
+    external_roles: dict[str, str] | None = None,
 ) -> list[str]:
     out: list[str] = []
     if isinstance(command, DispatchCall):
@@ -847,18 +863,22 @@ def render_command(
             f"{indent}    try_dispatch(dispatch_fn_from_library(QUERY_FN_PTR, {command.ordinal})?, &[{params}], &[{workload}], &["
         )
         for item in command.ranges:
-            out.append(f"{indent}        {render_tensor_range(item, workspace_names)},")
+            out.append(
+                f"{indent}        {render_tensor_range(item, workspace_names, external_roles)},"
+            )
         out.append(f"{indent}    ])?;")
         out.append(f"{indent}}}")
     elif isinstance(command, FillCommand):
         if command.value is None:
             raise StreamExtractionError(f"unresolved fill value {command.value_expr}")
-        rendered = render_tensor_range(command.target, workspace_names)
+        rendered = render_tensor_range(command.target, workspace_names, external_roles)
         out.append(f"{indent}unsafe {{ fill({rendered}, {command.value})?; }}")
     elif isinstance(command, ConcurrentCommand):
         out.append(f"{indent}concurrent(|| {{")
         for child in command.commands:
-            out.extend(render_command(child, indent + "    ", workspace_names))
+            out.extend(
+                render_command(child, indent + "    ", workspace_names, external_roles)
+            )
         out.append(f"{indent}    Ok(())")
         out.append(f"{indent}}})?;")
     return out
@@ -881,8 +901,24 @@ def render_rust(executes: list[CmdExecute], constant_blobs: dict[str, ConstantBl
             bindings.append(binding)
 
     constant_bindings = [binding for binding in bindings if binding.role == "constant"]
-    workspace_bindings = [binding for binding in bindings if binding.role != "constant"]
+    workspace_bindings = [binding for binding in bindings if binding.role == "temporary"]
+    external_bindings = [
+        binding for binding in bindings if binding.role in {"input", "output"}
+    ]
+    unsupported_bindings = [
+        binding
+        for binding in bindings
+        if binding.role not in {"constant", "temporary", "input", "output"}
+    ]
+    if unsupported_bindings:
+        raise StreamExtractionError(
+            "unsupported mutable resource roles: "
+            + ", ".join(binding.role for binding in unsupported_bindings)
+        )
     workspace_names = frozenset(binding_name(binding) for binding in workspace_bindings)
+    external_roles = {
+        binding_name(binding): binding.role for binding in external_bindings
+    }
 
     for binding in constant_bindings:
         out.extend(render_resource_static(binding, constant_blobs))
@@ -911,7 +947,8 @@ def render_rust(executes: list[CmdExecute], constant_blobs: dict[str, ConstantBl
 
     for execute in executes:
         out.append(
-            f"pub fn {rust_ident(execute.name)}(workspace: &mut Workspace) "
+            f"pub fn {rust_ident(execute.name)}("
+            "workspace: &mut Workspace, input: Buffer, output: BufferMut) "
             "-> Result<(), Error> {"
         )
         if execute.line_no is not None:
@@ -919,7 +956,9 @@ def render_rust(executes: list[CmdExecute], constant_blobs: dict[str, ConstantBl
         if execute.result:
             out.append(f"    // stream.cmd.execute result timepoint: {execute.result}")
         for command in execute.commands:
-            out.extend(render_command(command, "    ", workspace_names))
+            out.extend(
+                render_command(command, "    ", workspace_names, external_roles)
+            )
         out.append("    Ok(())")
         out.append("}")
         out.append("")

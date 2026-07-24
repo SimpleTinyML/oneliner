@@ -147,13 +147,10 @@ fn unique_binding<'a>(
                 .join(", ")
         )));
     }
-    let Some((name, (size, _))) = candidates.into_iter().next() else {
+    let Some((_name, (size, _))) = candidates.into_iter().next() else {
         return Ok(None);
     };
-    Ok(Some(BindingArtifact {
-        static_ident: parse_ident(name, &format!("IREE {label} binding"))?,
-        size: *size,
-    }))
+    Ok(Some(BindingArtifact { size: *size }))
 }
 
 fn ensure_unique_idents(idents: &[Ident], label: &str) -> syn::Result<()> {

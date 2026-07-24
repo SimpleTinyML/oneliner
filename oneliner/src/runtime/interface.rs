@@ -1,19 +1,102 @@
 #[cfg(feature = "alloc")]
 use super::Prediction;
 
-use super::Access;
+use super::{Access, Aligned, AlignedType};
 
-use ndarray::Array4;
-
-pub type Tensor4D<T> = Array4<T>;
+use ndarray::{ArrayView4, ArrayViewMut4};
 
 pub type Shape4D = (usize, usize, usize, usize);
 
 pub type Shape = Shape4D;
 
-pub type Tensor<T> = Tensor4D<T>;
+pub type TensorArray<T, const D1: usize, const D2: usize, const D3: usize, const D4: usize> =
+    [[[[T; D4]; D3]; D2]; D1];
 
-/// Typed tensor inference interface implemented by generated model sessions.
+/// Four-dimensional tensor backed by an owned, aligned, fixed-size nested array.
+pub struct Tensor4D<T, const D1: usize, const D2: usize, const D3: usize, const D4: usize> {
+    storage: Aligned<AlignedType, TensorArray<T, D1, D2, D3, D4>>,
+}
+
+pub type Tensor<T, const D1: usize, const D2: usize, const D3: usize, const D4: usize> =
+    Tensor4D<T, D1, D2, D3, D4>;
+
+impl<T, const D1: usize, const D2: usize, const D3: usize, const D4: usize>
+    Tensor4D<T, D1, D2, D3, D4>
+{
+    pub const SHAPE: Shape = (D1, D2, D3, D4);
+
+    pub const LEN: usize = D1 * D2 * D3 * D4;
+
+    pub const fn from_array(storage: TensorArray<T, D1, D2, D3, D4>) -> Self {
+        Self {
+            storage: Aligned(storage),
+        }
+    }
+
+    pub fn filled(value: T) -> Self
+    where
+        T: Copy,
+    {
+        Self::from_array([[[[value; D4]; D3]; D2]; D1])
+    }
+
+    pub fn as_slice(&self) -> &[T] {
+        self.storage[..]
+            .as_flattened()
+            .as_flattened()
+            .as_flattened()
+    }
+
+    pub fn as_slice_mut(&mut self) -> &mut [T] {
+        self.storage[..]
+            .as_flattened_mut()
+            .as_flattened_mut()
+            .as_flattened_mut()
+    }
+
+    pub fn as_ptr(&self) -> *const T {
+        self.as_slice().as_ptr()
+    }
+
+    pub fn as_mut_ptr(&mut self) -> *mut T {
+        self.as_slice_mut().as_mut_ptr()
+    }
+
+    pub fn byte_len(&self) -> usize {
+        core::mem::size_of_val(self.as_slice())
+    }
+
+    pub const fn len(&self) -> usize {
+        Self::LEN
+    }
+
+    pub const fn is_empty(&self) -> bool {
+        Self::LEN == 0
+    }
+
+    pub const fn dim(&self) -> Shape {
+        Self::SHAPE
+    }
+
+    pub fn view(&self) -> ArrayView4<'_, T> {
+        ArrayView4::from_shape(Self::SHAPE, self.as_slice())
+            .expect("Tensor4D shape must match its storage")
+    }
+
+    pub fn view_mut(&mut self) -> ArrayViewMut4<'_, T> {
+        ArrayViewMut4::from_shape(Self::SHAPE, self.as_slice_mut())
+            .expect("Tensor4D shape must match its storage")
+    }
+
+    pub fn fill(&mut self, value: T)
+    where
+        T: Clone,
+    {
+        self.view_mut().fill(value);
+    }
+}
+
+/// Typed, allocation-free tensor inference implemented by generated model sessions.
 pub trait ModelInference {
     type InputTensor;
     type OutputTensor;
@@ -21,7 +104,7 @@ pub trait ModelInference {
     /// Runs inference and returns an owned output tensor.
     fn run(&mut self, input: &Self::InputTensor) -> Self::OutputTensor;
 
-    /// Creates a zero-filled input tensor with the model's element type and shape.
+    /// Creates a zero-filled input tensor with the model's element type and dimensions.
     fn create_input_tensor() -> Self::InputTensor;
 }
 

@@ -22,7 +22,6 @@ struct ArtifactPaths {
 
 #[derive(Debug, Clone)]
 struct BindingArtifact {
-    static_ident: Ident,
     size: usize,
 }
 
