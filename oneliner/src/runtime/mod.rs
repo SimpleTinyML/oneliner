@@ -2,7 +2,6 @@ mod buffer;
 mod executor;
 mod interface;
 mod microflow;
-mod prediction;
 
 #[cfg(feature = "iree-runtime")]
 mod iree;
@@ -15,11 +14,10 @@ pub use buffer::{
 pub use executor::ArielOsExecutor;
 pub use executor::{DefaultExecutor, Executor, SequentialExecutor, WorkItem};
 pub use interface::{
-    Error, ModelArtifacts, ModelInference, ModelSource, Predict, Shape, Tensor, Tensor4D,
+    Error, ModelArtifacts, ModelInference, ModelSource, Shape, Tensor, Tensor4D,
     TensorArray,
 };
 pub use microflow::MicroflowModel;
-pub use prediction::Prediction;
 
 #[cfg(feature = "iree-runtime")]
 pub use iree::{

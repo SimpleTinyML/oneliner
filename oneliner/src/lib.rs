@@ -7,5 +7,5 @@ pub use oneliner_macro::model;
 
 pub mod runtime;
 
-pub use runtime::{ModelArtifacts, Prediction};
+pub use runtime::{ModelArtifacts};
 
