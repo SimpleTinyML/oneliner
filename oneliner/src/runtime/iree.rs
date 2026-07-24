@@ -7,7 +7,7 @@ use ariel_os::log;
 #[cfg(not(feature = "ariel-os"))]
 use log;
 
-use super::{DefaultExecutor, Error, Executor, TensorRange, WorkItem, AnyTensorRange, AnyTensor, Access};
+use super::{DefaultExecutor, Error, Executor, BufferRange, WorkItem, AnyBufferRange, AnyBuffer, Access};
 use abi::{iree_hal_executable_library_v0_t, IREE_HAL_EXECUTABLE_LIBRARY_VERSION_LATEST};
 use portable_atomic::{AtomicI32, Ordering};
 
@@ -55,13 +55,13 @@ pub unsafe fn dispatch_fn_from_library(
 ///
 /// # Safety
 ///
-/// `function` and every tensor range must satisfy the same requirements as
+/// `function` and every buffer range must satisfy the same requirements as
 /// [`try_dispatch`].
 pub unsafe fn dispatch(
     function: DispatchFn,
     params: &[u32],
     workload: &[u32],
-    ranges: &[AnyTensorRange],
+    ranges: &[AnyBufferRange],
 ) {
     unsafe { try_dispatch(function, params, workload, ranges) }.expect("backend dispatch failed");
 }
@@ -70,13 +70,13 @@ pub unsafe fn dispatch(
 ///
 /// # Safety
 ///
-/// `function` must be a valid IREE dispatch function. Every tensor pointer must
+/// `function` must be a valid IREE dispatch function. Every buffer pointer must
 /// remain valid for its declared range until all scheduled work completes.
 pub unsafe fn try_dispatch(
     function: DispatchFn,
     params: &[u32],
     workload: &[u32],
-    ranges: &[AnyTensorRange],
+    ranges: &[AnyBufferRange],
 ) -> Result<(), Error> {
     let mut executor = DefaultExecutor::default();
     unsafe { try_dispatch_with_executor(&mut executor, function, params, workload, ranges) }
@@ -86,7 +86,7 @@ pub unsafe fn try_dispatch(
 ///
 /// # Safety
 ///
-/// `function` must be a valid IREE dispatch function. Every tensor pointer must
+/// `function` must be a valid IREE dispatch function. Every buffer pointer must
 /// remain valid for its declared range until the executor has completed all
 /// submitted work.
 pub unsafe fn try_dispatch_with_executor<E>(
@@ -94,7 +94,7 @@ pub unsafe fn try_dispatch_with_executor<E>(
     function: DispatchFn,
     params: &[u32],
     workload: &[u32],
-    ranges: &[AnyTensorRange],
+    ranges: &[AnyBufferRange],
 ) -> Result<(), Error>
 where
     E: Executor,
@@ -119,13 +119,13 @@ where
     let mut binding_ptrs = [core::ptr::null_mut(); MAX_BINDINGS];
     let mut binding_lengths = [0usize; MAX_BINDINGS];
     for (index, range) in ranges.iter().enumerate() {
-        match range.tensor {
-            AnyTensor::Ref(tensor) => {
-                binding_ptrs[index] = unsafe { tensor.ptr.add(range.offset) as *mut c_void };
+        match range.buffer {
+            AnyBuffer::Ref(buffer) => {
+                binding_ptrs[index] = unsafe { buffer.ptr.add(range.offset) as *mut c_void };
                 binding_lengths[index] = range.length;
             }
-            AnyTensor::Mut(tensor) => {
-                binding_ptrs[index] = unsafe { tensor.ptr.add(range.offset) as *mut c_void };
+            AnyBuffer::Mut(buffer) => {
+                binding_ptrs[index] = unsafe { buffer.ptr.add(range.offset) as *mut c_void };
                 binding_lengths[index] = range.length;   
             }
         }

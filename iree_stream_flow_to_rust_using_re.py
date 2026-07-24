@@ -819,10 +819,10 @@ def render_tensor_range(item: TensorRange, workspace_names: frozenset[str] = fro
     offset = item.offset
     length = item.length
     storage_name = const_ident(item.tensor_name)
-    storage = f"(*workspace.{storage_name}).to_tensor_mut()" if item.tensor_name in workspace_names else f"(*{storage_name}).to_tensor_ref()"
+    storage = f"(*workspace.{storage_name}).to_buffer_mut()" if item.tensor_name in workspace_names else f"(*{storage_name}).to_buffer_ref()"
     # tensor_ref = f"tensor_ref!({storage})"
     return (
-        f"AnyTensorRange {{ tensor: {storage}.into(), access: Access::{access}, "
+        f"AnyBufferRange {{ buffer: {storage}.into(), access: Access::{access}, "
         f"offset: {offset}, length: {length} }}"
     )
 

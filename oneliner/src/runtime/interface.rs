@@ -84,7 +84,7 @@ pub enum Error {
         dimension: char,
         value: u32,
     },
-    TensorRangeOutOfBounds {
+    BufferRangeOutOfBounds {
         offset: usize,
         length: usize,
         capacity: usize,
@@ -125,7 +125,7 @@ impl core::fmt::Display for Error {
                 f,
                 "workgroup count {dimension}={value} exceeds the IREE ABI limit"
             ),
-            Self::TensorRangeOutOfBounds {
+            Self::BufferRangeOutOfBounds {
                 offset,
                 length,
                 capacity,

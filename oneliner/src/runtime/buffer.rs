@@ -16,14 +16,14 @@ pub enum Access {
 }
 
 #[derive(Clone, Copy)]
-pub struct TensorRef {
+pub struct Buffer {
     pub ptr: *const u8,
     pub len: usize,
 }
 
-impl TensorRef {
+impl Buffer {
     pub fn new(ptr: *const u8, len: usize) -> Self {
-        Self::try_new(ptr, len).expect("invalid tensor reference")
+        Self::try_new(ptr, len).expect("invalid buffer reference")
     }
 
     fn try_new(ptr: *const u8, len: usize) -> Result<Self, Error> {
@@ -35,14 +35,14 @@ impl TensorRef {
 }
 
 #[derive(Clone, Copy)]
-pub struct TensorMut {
+pub struct BufferMut {
     pub ptr: *mut u8,
     pub len: usize,
 }
 
-impl TensorMut {
+impl BufferMut {
     pub fn new(ptr: *mut u8, len: usize) -> Self {
-        Self::try_new(ptr, len).expect("invalid tensor reference")
+        Self::try_new(ptr, len).expect("invalid buffer reference")
     }
 
     fn try_new(ptr: *mut u8, len: usize) -> Result<Self, Error> {
@@ -53,36 +53,36 @@ impl TensorMut {
     }
 }
 
-/// Converts a generated storage item into the `TensorRef` used by dispatch.
+/// Converts a generated storage item into the `BufferRef` used by dispatch.
 ///
 /// Input: a raw pointer to the generated storage item.
-/// Output: a `TensorRef` pointing at the tensor bytes.
-pub trait TensorSource {
-    /// Builds a `TensorRef` from a raw pointer to the implementing type.
+/// Output: a `BufferRef` pointing at the buffer bytes.
+pub trait BufferSource {
+    /// Builds a `BufferRef` from a raw pointer to the implementing type.
     ///
     /// Input: pointer to converter-generated storage.
-    /// Output: tensor pointer and byte length.
+    /// Output: buffer pointer and byte length.
     ///
     /// Safety: `ptr` must point to a valid value of `Self`.
-    unsafe fn to_tensor_ref(&self) -> TensorRef;
-    unsafe fn to_tensor_mut(&mut self) -> TensorMut;
+    unsafe fn to_buffer_ref(&self) -> Buffer;
+    unsafe fn to_buffer_mut(&mut self) -> BufferMut;
 }
 
-impl<const N: usize> TensorSource for [u8; N] {
-    /// Treats a static byte array as a tensor buffer.
+impl<const N: usize> BufferSource for [u8; N] {
+    /// Treats a static byte array as a buffer buffer.
     ///
     /// Input: pointer to `[u8; N]`.
-    /// Output: `TensorRef` with the array pointer and fixed length `N`.
+    /// Output: `BufferRef` with the array pointer and fixed length `N`.
     ///
     /// Safety: `ptr` must point to a valid byte array.
-    unsafe fn to_tensor_ref(&self) -> TensorRef {
-        TensorRef {
+    unsafe fn to_buffer_ref(&self) -> Buffer {
+        Buffer {
             ptr: self as *const u8,
             len: N,
         }
     }
-    unsafe fn to_tensor_mut(&mut self) -> TensorMut {
-        TensorMut {
+    unsafe fn to_buffer_mut(&mut self) -> BufferMut {
+        BufferMut {
             ptr: self as *mut u8,
             len: N,
         }
@@ -91,8 +91,8 @@ impl<const N: usize> TensorSource for [u8; N] {
 
 
 #[derive(Clone, Copy)]
-pub struct TensorRange<T> {
-    pub tensor: T,
+pub struct BufferRange<T> {
+    pub buffer: T,
     pub access: Access,
     pub offset: usize,
     pub length: usize,
@@ -100,74 +100,74 @@ pub struct TensorRange<T> {
 }
 
 #[derive(Clone, Copy)]
-pub enum AnyTensor {
-    Ref(TensorRef),
-    Mut(TensorMut),
+pub enum AnyBuffer {
+    Ref(Buffer),
+    Mut(BufferMut),
 }
 
-impl AnyTensor {
+impl AnyBuffer {
     pub fn len(&self) -> usize {
         match self {
-            AnyTensor::Ref(t) => t.len,
-            AnyTensor::Mut(t) => t.len,
+            AnyBuffer::Ref(t) => t.len,
+            AnyBuffer::Mut(t) => t.len,
         }
     }
 }
 
-impl From<TensorRef> for AnyTensor {
-    fn from(t: TensorRef) -> Self {
-        AnyTensor::Ref(t)
+impl From<Buffer> for AnyBuffer {
+    fn from(t: Buffer) -> Self {
+        AnyBuffer::Ref(t)
     }
 }
 
-impl From<TensorMut> for AnyTensor {
-    fn from(t: TensorMut) -> Self {
-        AnyTensor::Mut(t)
+impl From<BufferMut> for AnyBuffer {
+    fn from(t: BufferMut) -> Self {
+        AnyBuffer::Mut(t)
     }
 }
 
 
-pub type AnyTensorRange = TensorRange<AnyTensor>;
+pub type AnyBufferRange = BufferRange<AnyBuffer>;
 
-impl AnyTensorRange {
-    pub fn new(tensor: AnyTensor, access: Access, offset: usize, length: usize) -> Self {
-        Self::try_new(tensor, access, offset, length)
-            .expect("invalid tensor range")
+impl AnyBufferRange {
+    pub fn new(buffer: AnyBuffer, access: Access, offset: usize, length: usize) -> Self {
+        Self::try_new(buffer, access, offset, length)
+            .expect("invalid buffer range")
     }
 
     pub fn try_new(
-        tensor: AnyTensor,
+        buffer: AnyBuffer,
         access: Access,
         offset: usize,
         length: usize,
     ) -> Result<Self, Error> {
-        let tensor_len = tensor.len();
+        let buffer_len = buffer.len();
 
         let end = offset
             .checked_add(length)
-            .ok_or(Error::TensorRangeOutOfBounds { offset, length, capacity: tensor_len })?;
+            .ok_or(Error::BufferRangeOutOfBounds { offset, length, capacity: buffer_len })?;
 
-        if end > tensor_len {
-            return Err(Error::TensorRangeOutOfBounds { offset, length, capacity: tensor_len });
+        if end > buffer_len {
+            return Err(Error::BufferRangeOutOfBounds { offset, length, capacity: buffer_len });
         }
 
         let access_valid = matches!(
-            (tensor, access),
-            (AnyTensor::Ref(_), Access::Ro)
-                | (AnyTensor::Mut(_), Access::Ro)
-                | (AnyTensor::Mut(_), Access::Wo)
-                | (AnyTensor::Mut(_), Access::Rw)
+            (buffer, access),
+            (AnyBuffer::Ref(_), Access::Ro)
+                | (AnyBuffer::Mut(_), Access::Ro)
+                | (AnyBuffer::Mut(_), Access::Wo)
+                | (AnyBuffer::Mut(_), Access::Rw)
         );
 
         if !access_valid {
-            return Err(Error::InvalidAccess { access, required: match tensor {
-                AnyTensor::Ref(_) => Access::Ro,
-                AnyTensor::Mut(_) => Access::Rw,
+            return Err(Error::InvalidAccess { access, required: match buffer {
+                AnyBuffer::Ref(_) => Access::Ro,
+                AnyBuffer::Mut(_) => Access::Rw,
             }});
         }
 
         Ok(Self {
-            tensor,
+            buffer: buffer,
             access,
             offset,
             length,
@@ -225,7 +225,7 @@ pub fn concurrent<T>(commands: impl FnOnce() -> T) -> T {
 /// Converts scalar fill values to the byte written by `fill`.
 ///
 /// Input: scalar value.
-/// Output: low byte used to fill a tensor range.
+/// Output: low byte used to fill a buffer range.
 pub trait FillValue {
     /// Converts this scalar into a byte fill value.
     ///
@@ -252,22 +252,22 @@ macro_rules! impl_fill_value {
 
 impl_fill_value!(i8, i16, i32, i64, isize, u8, u16, u32, u64, usize);
 
-/// Fills a generated tensor range with one byte value.
+/// Fills a generated buffer range with one byte value.
 ///
 /// # Safety
 ///
-/// The tensor pointer must be valid and writable for the declared range.
-pub unsafe fn fill(target: AnyTensorRange, value: impl FillValue + Copy) -> Result<(), Error> {
-    match target.tensor {
-        AnyTensor::Ref(_) => {
+/// The buffer pointer must be valid and writable for the declared range.
+pub unsafe fn fill(target: AnyBufferRange, value: impl FillValue + Copy) -> Result<(), Error> {
+    match target.buffer {
+        AnyBuffer::Ref(_) => {
             return Err(Error::InvalidAccess {
                 access: target.access,
                 required: Access::Rw,
             });
         }
-        AnyTensor::Mut(tensor) => {
+        AnyBuffer::Mut(buffer) => {
             unsafe {
-                core::ptr::write_bytes(tensor.ptr.add(target.offset), value.to_u8(), target.length);
+                core::ptr::write_bytes(buffer.ptr.add(target.offset), value.to_u8(), target.length);
             }
         }
     }
@@ -280,9 +280,9 @@ pub unsafe fn fill(target: AnyTensorRange, value: impl FillValue + Copy) -> Resu
 mod tests {
     use super::*;
 
-    fn range(capacity: usize, offset: usize, length: usize) -> TensorRange {
-        TensorRange {
-            tensor: TensorRef {
+    fn range(capacity: usize, offset: usize, length: usize) -> BufferRange {
+        BufferRange {
+            buffer: Buffer {
                 ptr: core::ptr::dangling_mut(),
                 len: capacity,
             },
@@ -293,16 +293,16 @@ mod tests {
     }
 
     #[test]
-    fn validates_tensor_ranges() {
+    fn validates_buffer_ranges() {
         assert_eq!(checked_len(range(16, 4, 8)), Ok(8));
         assert_eq!(checked_len(range(16, 4, 0)), Ok(12));
         assert!(matches!(
             checked_len(range(16, 17, 0)),
-            Err(Error::TensorRangeOutOfBounds { .. })
+            Err(Error::BufferRangeOutOfBounds { .. })
         ));
         assert!(matches!(
             checked_len(range(16, 8, 9)),
-            Err(Error::TensorRangeOutOfBounds { .. })
+            Err(Error::BufferRangeOutOfBounds { .. })
         ));
     }
 }

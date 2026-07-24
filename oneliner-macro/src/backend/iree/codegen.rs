@@ -58,7 +58,7 @@ pub(super) fn expand(input_struct: ItemStruct, artifacts: IreeArtifacts) -> Toke
         mod #module_ident {
             use ::OneLiner::runtime::{
                 concurrent, dispatch_fn_from_library, fill, try_dispatch, Access, Aligned,
-                AlignedType, AnyTensorRange, iree_hal_executable_environment_v0_t, TensorSource, Error,
+                AlignedType, AnyBufferRange, iree_hal_executable_environment_v0_t, BufferSource, Error,
                 iree_hal_executable_library_header_t, iree_hal_executable_library_query_fn_t,
             };
 

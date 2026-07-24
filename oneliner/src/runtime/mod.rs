@@ -9,7 +9,7 @@ mod iree;
 
 pub use buffer::{
     concurrent, fill, read_output, write_input, Access,
-    TensorRange, TensorRef, TensorSource, AnyTensorRange, AnyTensor
+    BufferRange, Buffer, BufferSource, AnyBufferRange, AnyBuffer
 };
 #[cfg(feature = "ariel-os")]
 pub use executor::ArielOsExecutor;
