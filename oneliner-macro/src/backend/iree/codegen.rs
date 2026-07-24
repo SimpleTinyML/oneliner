@@ -18,21 +18,20 @@ pub(super) fn expand(input_struct: ItemStruct, artifacts: IreeArtifacts) -> Toke
     let object_path = path_lit(&paths.object);
     let ir_path = path_lit(&paths.ir);
     let metadata_json_path = path_lit(&paths.metadata_json);
-    let input_size = artifacts.input.as_ref().map_or(0, |binding| binding.size);
+    let input_size = artifacts.input.size;
     let output_size = artifacts.output.size;
     let execute_fns = &artifacts.execute_fns;
     let query_fn = &artifacts.query_fn;
-
-    let input_write = artifacts.input.as_ref().map_or_else(
-        || quote!(let _ = input;),
-        |binding| {
-            let ident = &binding.static_ident;
-            quote! {
-                ::OneLiner::runtime::write_input(&mut self.workspace.#ident, input)?;
-            }
-        },
-    );
+    let input_ident = &artifacts.input.static_ident;
     let output_ident = &artifacts.output.static_ident;
+    let input_type = artifacts.input_tensor.element_type.rust_tokens();
+    let output_type = artifacts.output_tensor.element_type.rust_tokens();
+    let input_element_size = artifacts.input_tensor.element_type.byte_width();
+    let output_element_size = artifacts.output_tensor.element_type.byte_width();
+    let [input_d0, input_d1, input_d2, input_d3] = artifacts.input_tensor.shape;
+    let [output_d0, output_d1, output_d2, output_d3] = artifacts.output_tensor.shape;
+    let input_shape = quote!((#input_d0, #input_d1, #input_d2, #input_d3));
+    let output_shape = quote!((#output_d0, #output_d1, #output_d2, #output_d3));
 
     quote! {
 
@@ -63,7 +62,7 @@ pub(super) fn expand(input_struct: ItemStruct, artifacts: IreeArtifacts) -> Toke
                 AlignedType, AnyBufferRange, iree_hal_executable_environment_v0_t, BufferSource, Error,
                 iree_hal_executable_library_header_t, iree_hal_executable_library_query_fn_t,
             };
-            
+
             unsafe extern "C" {
                 pub unsafe fn #query_fn(
                     max_version: u32,
@@ -83,7 +82,7 @@ pub(super) fn expand(input_struct: ItemStruct, artifacts: IreeArtifacts) -> Toke
         }
 
         impl #struct_ident {
-            /// Creates an independently reusable prediction session over caller-owned storage.
+            /// Creates an independently reusable inference session over caller-owned storage.
             pub fn session<'workspace>(
                 workspace: &'workspace mut #workspace_ident,
             ) -> #session_ident<'workspace> {
@@ -108,21 +107,49 @@ pub(super) fn expand(input_struct: ItemStruct, artifacts: IreeArtifacts) -> Toke
             };
         }
 
-        impl ::OneLiner::runtime::Predict<[u8]> for #session_ident<'_> {
-            type Error = ::OneLiner::runtime::Error;
-            type Output<'prediction> = ::OneLiner::runtime::Prediction<'prediction>
-            where
-                Self: 'prediction;
+        impl ::OneLiner::runtime::ModelInference for #session_ident<'_> {
+            type InputTensor = ::OneLiner::runtime::Tensor<#input_type>;
+            type OutputTensor = ::OneLiner::runtime::Tensor<#output_type>;
 
-            fn try_predict<'prediction>(
-                &'prediction mut self,
-                input: &[u8],
-            ) -> ::core::result::Result<Self::Output<'prediction>, Self::Error> {
-                #input_write
-                #(#module_ident::#execute_fns(&mut *self.workspace)?;)*
-                Ok(::OneLiner::runtime::read_output(
-                    &self.workspace.#output_ident,
-                ))
+            fn create_input_tensor() -> Self::InputTensor {
+                ::OneLiner::runtime::Tensor::<#input_type>::zeros(#input_shape)
+            }
+
+            fn run(&mut self, input: &Self::InputTensor) -> Self::OutputTensor {
+                assert_eq!(
+                    input.dim(),
+                    #input_shape,
+                    "OneLiner input tensor shape mismatch",
+                );
+
+                let mut input_elements = input.iter();
+                for destination in self.workspace.#input_ident.chunks_exact_mut(#input_element_size) {
+                    let value = input_elements
+                        .next()
+                        .expect("OneLiner input tensor contains too few elements");
+                    destination.copy_from_slice(&value.to_ne_bytes());
+                }
+                assert!(
+                    input_elements.next().is_none(),
+                    "OneLiner input tensor contains too many elements",
+                );
+
+                #(
+                    #module_ident::#execute_fns(&mut *self.workspace)
+                        .expect("OneLiner inference dispatch failed");
+                )*
+
+                let mut output =
+                    ::OneLiner::runtime::Tensor::<#output_type>::zeros(#output_shape);
+                for (value, source) in output
+                    .iter_mut()
+                    .zip(self.workspace.#output_ident.chunks_exact(#output_element_size))
+                {
+                    let mut bytes = [0u8; #output_element_size];
+                    bytes.copy_from_slice(source);
+                    *value = <#output_type>::from_ne_bytes(bytes);
+                }
+                output
             }
         }
     }

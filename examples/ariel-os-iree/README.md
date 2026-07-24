@@ -1,22 +1,22 @@
 # OneLiner Ariel OS IREE Example
 
 This example validates the OneLiner IREE backend from an Ariel OS app with a
-quantized LeNet-5 model.
+quantized MCUNet visual wake-word model.
 
 It builds the model at Rust compile time, links the generated static
 object, runs the generated dispatch flow in a `no_std` Ariel OS thread, and exits
-successfully only when the output bytes match the expected result.
+successfully only when the typed output tensor matches the expected result.
 
 The example places a generated `ModelWorkspace` in a `ConstStaticCell` and
 creates a `ModelSession` from its unique mutable reference. Mutable input,
 output, and temporary buffers belong to that workspace instead of global
 storage, so independent workspace cells can run predictions concurrently.
 
-The active model is `models/lenet5_quantized.tflite`:
+The active model is `models/mcunet-10fps_vww.tflite`:
 
-- input: 28 x 28 x 4 bytes
-- output: 10 x 4 bytes
-- expected validation: input bytes filled with `7` -> 40 zero bytes
+- input: `Tensor<i8>` with shape `(1, 64, 64, 3)`
+- output: `Tensor<i8>` with normalized shape `(1, 1, 1, 2)`
+- expected validation: input elements filled with `7` -> `[4, -5]`
 
 ## Build
 

@@ -4,7 +4,7 @@
 
 ```rust
 use OneLiner::model;
-use OneLiner::runtime::Predict;
+use OneLiner::runtime::ModelInference;
 
 #[model("path/to/model.tflite")]
 struct MyModel;
@@ -12,8 +12,10 @@ struct MyModel;
 fn main() {
     let mut workspace = MyModelWorkspace::new();
     let mut model = MyModel::session(&mut workspace);
-    let prediction = model.predict(input_data);
-    println!("{} output bytes", prediction.as_bytes().len());
+    let mut input = MyModelSession::create_input_tensor();
+    input.fill(1);
+    let output = model.run(&input);
+    println!("{} output elements", output.len());
 }
 ```
 
@@ -67,21 +69,15 @@ Select a backend explicitly:
 struct MyModel;
 ```
 
-For fallible code, use `try_predict`:
+IREE model sessions use typed four-dimensional ndarray tensors. The macro
+derives both element types and shapes from the model's `@main` signature:
 
 ```rust
 let mut workspace = MyModelWorkspace::new();
 let mut model = MyModel::session(&mut workspace);
-let prediction = model.try_predict(input_data)?;
-```
-
-The borrowed prediction prevents the same session from being reused while its
-output is still live. Create one workspace per concurrent session. With the
-`alloc` feature, copy the result when it must outlive or be reused independently
-of the session:
-
-```rust
-let prediction = model.try_predict_owned(input_data)?;
+let mut input = MyModelSession::create_input_tensor();
+input.fill(1);
+let output = model.run(&input);
 ```
 
 Generated artifact paths are available for debugging:
@@ -187,7 +183,7 @@ The `oneliner` runtime crate supports:
   and `Predict::try_predict_owned`.
 - `iree-runtime` feature: enables IREE local executable ABI helpers such as
   `dispatch`, `try_dispatch`, and HAL dispatch-state structs.
-- no default features: pure `no_std` runtime with borrowed output slices.
+- no default features: pure `no_std` runtime without the IREE dispatch helpers.
 
 The public runtime surface is intentionally small:
 
@@ -202,6 +198,14 @@ pub trait Predict<Input: ?Sized = [u8]> {
         &'prediction mut self,
         input: &Input,
     ) -> Result<Self::Output<'prediction>, Self::Error>;
+}
+
+pub trait ModelInference {
+    type InputTensor;
+    type OutputTensor;
+
+    fn run(&mut self, input: &Self::InputTensor) -> Self::OutputTensor;
+    fn create_input_tensor() -> Self::InputTensor;
 }
 
 pub trait ModelSource {
@@ -222,14 +226,15 @@ Microflow can return typed outputs through `MicroflowModel`. OneLiner also
 implements the stateful `Predict<[u8]>` interface for Microflow-backed model
 values.
 
-In pure `no_std`, every IREE session borrows caller-owned workspace storage and
-`Prediction` borrows that session's output buffer:
+Every IREE session borrows caller-owned workspace storage, while inference
+accepts and returns typed `Tensor<T>` values:
 
 ```rust
 let mut workspace = MyModelWorkspace::new();
 let mut model = MyModel::session(&mut workspace);
-let prediction = model.predict(input);
-let bytes: &[u8] = prediction.as_bytes();
+let mut input = MyModelSession::create_input_tensor();
+input.fill(1);
+let output = model.run(&input);
 ```
 
 The generated flow contains no mutable global model buffers. Model constants

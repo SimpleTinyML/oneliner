@@ -7,17 +7,14 @@ use ariel_os::reexports::static_cell::ConstStaticCell;
 use ariel_os::time;
 
 use OneLiner::model;
-use OneLiner::runtime::{Aligned, AlignedType, ModelSource, Predict};
+use OneLiner::runtime::{ModelInference, ModelSource};
 
 #[model("models/mcunet-10fps_vww.tflite", backend = "iree")]
 struct Model;
 const INPUT_LEN: usize = 64 * 64 * 3;
-static INPUT: [u8; INPUT_LEN] = [7; INPUT_LEN];
-const EXPECTED: [u8; 2] = [4, 251];
+const EXPECTED: [i8; 2] = [4, -5];
 
-static WORKSPACE: ConstStaticCell<ModelWorkspace> =
-    ConstStaticCell::new(ModelWorkspace::new());
-
+static WORKSPACE: ConstStaticCell<ModelWorkspace> = ConstStaticCell::new(ModelWorkspace::new());
 
 // #[model("models/lenet5_quantized.tflite", backend = "iree")]
 // struct Model;
@@ -38,39 +35,31 @@ fn main() {
         artifacts.input_size, artifacts.output_size
     );
 
-    if artifacts.input_size != INPUT.len() || artifacts.output_size != EXPECTED.len() {
+    if artifacts.input_size != INPUT_LEN || artifacts.output_size != EXPECTED.len() {
         error!("Model validation failed: unexpected artifact sizes");
         exit(ExitCode::FAILURE);
     }
     let mut model = Model::session(WORKSPACE.take());
+    let mut input = ModelSession::create_input_tensor();
+    input.fill(7);
     let time_begin_us = time::Instant::now().as_micros();
-    let prediction = model.try_predict(&INPUT[..]);
+    let output = model.run(&input);
     let time_end_us = time::Instant::now().as_micros();
     info!("Model inference time: {:?} us", time_end_us - time_begin_us);
 
-    match prediction {
-        Ok(prediction) => {
-            let actual = prediction.as_bytes();
-            if actual == EXPECTED {
-                info!("Model IREE validation passed");
-                exit(ExitCode::SUCCESS);
-            }
-            error!(
-                "Model validation failed: expected {} output bytes, received {} bytes with different contents",
-                EXPECTED.len(),
-                actual.len()
-            );
-
-            error!(
-                "EXPECTED: [{}, {}], received: [{}, {}]",
-                EXPECTED[0], EXPECTED[1],
-                actual[0], actual[1]
-            );
-            exit(ExitCode::FAILURE);
-        }
-        Err(error) => {
-            error!("Model validation failed");
-            exit(ExitCode::FAILURE);
-        }
+    let actual = output.as_slice().expect("output tensor is contiguous");
+    if actual == EXPECTED {
+        info!("Model IREE validation passed");
+        exit(ExitCode::SUCCESS);
     }
+    error!(
+        "Model validation failed: expected {} output elements, received {} elements with different values",
+        EXPECTED.len(),
+        actual.len()
+    );
+    error!(
+        "EXPECTED: [{}, {}], received: [{}, {}]",
+        EXPECTED[0], EXPECTED[1], actual[0], actual[1]
+    );
+    exit(ExitCode::FAILURE);
 }

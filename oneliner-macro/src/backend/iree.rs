@@ -2,6 +2,7 @@ mod artifacts;
 mod codegen;
 mod discovery;
 mod metadata;
+mod signature;
 mod toolchain;
 
 use std::path::PathBuf;
@@ -30,8 +31,10 @@ struct IreeArtifacts {
     paths: ArtifactPaths,
     query_fn: Ident,
     execute_fns: Vec<Ident>,
-    input: Option<BindingArtifact>,
+    input: BindingArtifact,
     output: BindingArtifact,
+    input_tensor: signature::TensorArtifact,
+    output_tensor: signature::TensorArtifact,
 }
 
 pub fn expand(input_struct: syn::ItemStruct, model_path: PathBuf) -> syn::Result<TokenStream> {
@@ -40,6 +43,4 @@ pub fn expand(input_struct: syn::ItemStruct, model_path: PathBuf) -> syn::Result
     let expanded = codegen::expand(input_struct, artifacts);
     // eprintln!("generated:\n{expanded}");
     Ok(expanded.into())
-   
-    
 }

@@ -8,8 +8,9 @@ use syn::Ident;
 use super::super::common::rust_ident;
 use super::discovery::{find_stream_flow_ir, parse_query_function, validate_file};
 use super::metadata::load_metadata;
+use super::signature::{load_model_signature, TensorArtifact};
 use super::toolchain::{run_converter, run_iree_compile, run_tosa_converter};
-use super::{ArtifactPaths, IreeArtifacts};
+use super::{ArtifactPaths, BindingArtifact, IreeArtifacts};
 
 pub(super) fn build(struct_ident: &Ident, model_path: PathBuf) -> syn::Result<IreeArtifacts> {
     let manifest_dir = required_path_env("CARGO_MANIFEST_DIR")?;
@@ -49,6 +50,13 @@ pub(super) fn build(struct_ident: &Ident, model_path: PathBuf) -> syn::Result<Ir
     validate_file(&metadata_json, "generated IREE metadata JSON")?;
 
     let metadata = load_metadata(&metadata_json)?;
+    let signature = load_model_signature(&compile_input_path)?;
+    let input = metadata
+        .input
+        .ok_or_else(|| call_site_error("IREE metadata does not contain an input binding"))?;
+    validate_tensor_size("input", &input, &signature.input)?;
+    validate_tensor_size("output", &metadata.output, &signature.output)?;
+
     Ok(IreeArtifacts {
         paths: ArtifactPaths {
             model: model_path,
@@ -60,9 +68,34 @@ pub(super) fn build(struct_ident: &Ident, model_path: PathBuf) -> syn::Result<Ir
         },
         query_fn,
         execute_fns: metadata.execute_fns,
-        input: metadata.input,
+        input,
         output: metadata.output,
+        input_tensor: signature.input,
+        output_tensor: signature.output,
     })
+}
+
+fn validate_tensor_size(
+    label: &str,
+    binding: &BindingArtifact,
+    tensor: &TensorArtifact,
+) -> syn::Result<()> {
+    let tensor_size = tensor.byte_len().ok_or_else(|| {
+        call_site_error(format!(
+            "{label} tensor byte size overflows usize for shape {:?}",
+            tensor.shape
+        ))
+    })?;
+    if tensor_size != binding.size {
+        return Err(call_site_error(format!(
+            "{label} tensor {:?} with element width {} occupies {} bytes, but the IREE binding occupies {} bytes",
+            tensor.shape,
+            tensor.element_type.byte_width(),
+            tensor_size,
+            binding.size,
+        )));
+    }
+    Ok(())
 }
 
 fn required_path_env(name: &str) -> syn::Result<PathBuf> {

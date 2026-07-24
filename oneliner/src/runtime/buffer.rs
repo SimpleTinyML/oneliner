@@ -1,11 +1,4 @@
-use super::{Aligned, AlignedType};
-use super::{Error, Prediction};
-
-#[cfg(feature = "ariel-os")]
-use ariel_os::log::{debug};
-
-#[cfg(not(feature = "ariel-os"))]
-use log::{debug};
+use super::Error;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Access {
@@ -174,44 +167,6 @@ impl AnyBufferRange {
         })
     }
 
-}
-
-/// Copies user input into caller-owned aligned model storage.
-///
-/// Input: exclusively borrowed input storage and user input bytes.
-/// Output: success when the input size exactly matches the generated storage.
-pub fn write_input<const N: usize>(
-    slot: &mut Aligned<AlignedType, [u8; N]>,
-    input: &[u8],
-) -> Result<(), Error> {
-    if input.len() != N {
-        return Err(Error::InputSizeMismatch {
-            provided: input.len(),
-            expected: N,
-        });
-    }
-    slot.copy_from_slice(input);
-
-    for i in 0..N {
-        if slot[i] != input[i] {
-            debug!(
-                "write_input: mismatch at index {}: slot={} input={}",
-                i, slot[i], input[i]
-            );
-        }
-    }
-
-
-    Ok(())
-}
-
-/// Borrows caller-owned aligned output storage as a `Prediction`.
-///
-/// Input: shared borrow of the generated output storage.
-/// Output: prediction whose lifetime is tied to the storage borrow.
-pub fn read_output<const N: usize>(src: &Aligned<AlignedType, [u8; N]>) -> Prediction<'_> {
-    debug!("read_output: output={:?}", &src[..]);
-    Prediction::from_slice(&src[..])
 }
 
 /// Runs a group of generated commands sequentially.

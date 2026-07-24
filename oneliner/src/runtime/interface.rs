@@ -1,10 +1,9 @@
 #[cfg(feature = "alloc")]
 use super::Prediction;
 
-use super::{Access};
+use super::Access;
 
-use ndarray::{Array4};
-
+use ndarray::Array4;
 
 pub type Tensor4D<T> = Array4<T>;
 
@@ -14,19 +13,17 @@ pub type Shape = Shape4D;
 
 pub type Tensor<T> = Tensor4D<T>;
 
+/// Typed tensor inference interface implemented by generated model sessions.
 pub trait ModelInference {
     type InputTensor;
     type OutputTensor;
 
-    fn run(
-        &mut self,
-        input: &Self::InputTensor,
-    ) -> Self::OutputTensor;
+    /// Runs inference and returns an owned output tensor.
+    fn run(&mut self, input: &Self::InputTensor) -> Self::OutputTensor;
 
+    /// Creates a zero-filled input tensor with the model's element type and shape.
     fn create_input_tensor() -> Self::InputTensor;
-
 }
-
 
 /// Common prediction interface implemented by backend model values and sessions.
 ///
@@ -88,10 +85,6 @@ pub trait ModelSource {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Error {
-    InputSizeMismatch {
-        provided: usize,
-        expected: usize,
-    },
     TooManyBindings {
         provided: usize,
         capacity: usize,
@@ -129,10 +122,6 @@ impl core::fmt::Display for Error {
     /// Output: `Ok(())` when the message was written.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::InputSizeMismatch { provided, expected } => write!(
-                f,
-                "input has {provided} bytes, but the model expects exactly {expected} bytes"
-            ),
             Self::TooManyBindings { provided, capacity } => write!(
                 f,
                 "dispatch has {provided} bindings, but runtime stack storage holds {capacity}"
@@ -158,7 +147,7 @@ impl core::fmt::Display for Error {
             ),
             Self::DispatchFailed { status } => {
                 write!(f, "backend dispatch returned status {status}")
-            },
+            }
 
             Self::InvalidAccess { access, required } => write!(
                 f,

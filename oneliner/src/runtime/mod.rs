@@ -8,7 +8,7 @@ mod prediction;
 mod iree;
 
 pub use buffer::{
-    concurrent, fill, read_output, write_input, Access,
+    concurrent, fill, Access,
     BufferRange, Buffer, BufferSource, AnyBufferRange, AnyBuffer
 };
 #[cfg(feature = "ariel-os")]
