@@ -11,16 +11,15 @@ name = "OneLiner"
 default = ["iree-runtime"]
 alloc = []
 iree-runtime = []
-ariel-os = ["dep:ariel-os"]
-static_arena = ["dep:static_cell"]
+ariel-os = ["dep:ariel-os", "ariel-os/threading"]
 ndarray = ["dep:ndarray"]
 
 
 [dependencies]
 ndarray = { version = "0.17.2", default-features = false, optional = true }
-static_cell = { version = "2.1.1",  optional = true }
 oneliner-macro = { path = "../oneliner-macro" }
 ariel-os = { version = ">=0.4.0", optional = true, default-features = false }
+critical-section = "1.2.0"
 defmt = { version = "1.0.0" }
 log = { version = "0.4.26"}
 aligned ={ version = "0.4.3" }

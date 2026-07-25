@@ -4,15 +4,24 @@ use syn::{AttributeArgs, Lit, LitStr, Meta, NestedMeta};
 pub struct ModelArgs {
     pub model_path: LitStr,
     pub backend: BackendArg,
+    pub arena: ArenaArg,
+    pub arena_span: Option<proc_macro2::Span>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BackendArg {
     Iree,
     Microflow,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ArenaArg {
+    Owned,
+    Shared,
+}
+
 impl ModelArgs {
-    /// Parses `#[model("path", backend = "...")]` arguments.
+    /// Parses `#[model("path", backend = "...", arena = "...")]` arguments.
     ///
     /// Input: `syn::AttributeArgs` from the procedural macro entry point.
     /// Output: normalized model path literal and backend selector.
@@ -30,6 +39,8 @@ impl ModelArgs {
         };
 
         let mut backend = None;
+        let mut arena = None;
+        let mut arena_span = None;
         for arg in args {
             match arg {
                 NestedMeta::Meta(Meta::NameValue(meta)) if meta.path.is_ident("backend") => {
@@ -38,10 +49,17 @@ impl ModelArgs {
                     }
                     backend = Some(parse_backend(meta.lit)?);
                 }
+                NestedMeta::Meta(Meta::NameValue(meta)) if meta.path.is_ident("arena") => {
+                    if arena.is_some() {
+                        return Err(syn::Error::new(meta.span(), "duplicate arena option"));
+                    }
+                    arena_span = Some(meta.span());
+                    arena = Some(parse_arena(meta.lit)?);
+                }
                 other => {
                     return Err(syn::Error::new(
                         other.span(),
-                        "unknown #[model] option, expected backend = \"...\"",
+                        "unknown #[model] option, expected backend = \"...\" or arena = \"...\"",
                     ));
                 }
             }
@@ -50,6 +68,8 @@ impl ModelArgs {
         Ok(Self {
             model_path,
             backend: backend.unwrap_or(BackendArg::Iree),
+            arena: arena.unwrap_or(ArenaArg::Owned),
+            arena_span,
         })
     }
 }
@@ -75,6 +95,27 @@ fn parse_backend(lit: Lit) -> syn::Result<BackendArg> {
         other => Err(syn::Error::new(
             value.span(),
             format!("unknown backend '{other}', expected 'iree' or 'microflow'"),
+        )),
+    }
+}
+
+fn parse_arena(lit: Lit) -> syn::Result<ArenaArg> {
+    let value = match lit {
+        Lit::Str(value) => value,
+        other => {
+            return Err(syn::Error::new(
+                other.span(),
+                "arena must be a string literal, for example arena = \"shared\"",
+            ));
+        }
+    };
+
+    match value.value().trim().to_ascii_lowercase().as_str() {
+        "owned" => Ok(ArenaArg::Owned),
+        "shared" => Ok(ArenaArg::Shared),
+        other => Err(syn::Error::new(
+            value.span(),
+            format!("unknown arena '{other}', expected 'owned' or 'shared'"),
         )),
     }
 }

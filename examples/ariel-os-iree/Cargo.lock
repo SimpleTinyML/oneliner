@@ -8,6 +8,7 @@ version = "0.1.0"
 dependencies = [
  "aligned",
  "ariel-os",
+ "critical-section",
  "defmt",
  "log",
  "oneliner-macro",

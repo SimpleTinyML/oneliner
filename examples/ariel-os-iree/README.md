@@ -7,11 +7,10 @@ It builds the model at Rust compile time, links the generated static
 object, runs the generated dispatch flow in a `no_std` Ariel OS thread, and exits
 successfully only when the typed output tensor matches the expected result.
 
-The example places a generated `ModelWorkspace` in a `ConstStaticCell` and
-creates a `ModelSession` from its unique mutable reference. The input and output
+The model uses `arena = "shared"`, so the macro initializes one private static
+arena and synchronizes access from every `Model` instance. The input and output
 bindings point directly at tensor values created locally in `main`, while only
-temporary buffers belong to the workspace. Independent workspace cells can
-therefore run predictions concurrently.
+temporary buffers belong to the shared arena.
 
 The active model is `models/mcunet-10fps_vww.tflite`:
 

@@ -108,7 +108,7 @@ impl<T, const D1: usize, const D2: usize, const D3: usize, const D4: usize>
     }
 }
 
-/// Typed, allocation-free tensor inference implemented by generated model sessions.
+/// Typed tensor inference implemented directly by generated model instances.
 pub trait ModelInference {
     type InputTensor;
     type OutputTensor;

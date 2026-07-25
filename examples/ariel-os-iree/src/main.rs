@@ -3,18 +3,19 @@
 
 use ariel_os::debug::{exit, ExitCode};
 use ariel_os::log::{error, info};
-use ariel_os::reexports::static_cell::ConstStaticCell;
 use ariel_os::time;
 
 use OneLiner::model;
 use OneLiner::runtime::{ModelInference, ModelSource};
 
-#[model("models/mcunet-10fps_vww.tflite", backend = "iree")]
+#[model(
+    "models/mcunet-10fps_vww.tflite",
+    backend = "iree",
+    arena = "shared"
+)]
 struct Model;
 const INPUT_LEN: usize = 64 * 64 * 3;
 const EXPECTED: [i8; 2] = [4, -5];
-
-static WORKSPACE: ConstStaticCell<ModelWorkspace> = ConstStaticCell::new(ModelWorkspace::new());
 
 // #[model("models/lenet5_quantized.tflite", backend = "iree")]
 // struct Model;
@@ -39,8 +40,8 @@ fn main() {
         error!("Model validation failed: unexpected artifact sizes");
         exit(ExitCode::FAILURE);
     }
-    let mut model = Model::session(WORKSPACE.take());
-    let mut input = ModelSession::create_input_tensor();
+    let mut model = Model::new();
+    let mut input = Model::create_input_tensor();
     input.fill(7);
     let time_begin_us = time::Instant::now().as_micros();
     let output = model.run(&input);

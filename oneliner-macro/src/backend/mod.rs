@@ -14,6 +14,14 @@ use crate::args::{BackendArg, ModelArgs};
 /// Output: generated Rust tokens or a `syn::Error` for invalid input/backend failure.
 pub fn expand(args: ModelArgs, input_struct: ItemStruct) -> syn::Result<proc_macro2::TokenStream> {
     let span = args.model_path.span();
+    if matches!(args.backend, BackendArg::Microflow) {
+        if let Some(arena_span) = args.arena_span {
+            return Err(syn::Error::new(
+                arena_span,
+                "the arena option is only supported by the IREE backend",
+            ));
+        }
+    }
     if !input_struct.generics.params.is_empty() || input_struct.generics.where_clause.is_some() {
         return Err(syn::Error::new_spanned(
             &input_struct.generics,
@@ -49,7 +57,7 @@ pub fn expand(args: ModelArgs, input_struct: ItemStruct) -> syn::Result<proc_mac
     }
 
     match args.backend {
-        BackendArg::Iree => iree::expand(input_struct, model_path),
+        BackendArg::Iree => iree::expand(input_struct, model_path, args.arena),
         BackendArg::Microflow => Ok(microflow::expand(input_struct, model_path)),
     }
 }

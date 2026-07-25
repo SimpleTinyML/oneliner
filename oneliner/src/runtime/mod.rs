@@ -1,3 +1,4 @@
+mod arena;
 mod buffer;
 mod executor;
 mod interface;
@@ -30,3 +31,7 @@ pub use iree::{
 
 pub use aligned::{Aligned, A16, A2, A32, A4, A64};
 pub type AlignedType = A64;
+
+
+pub use arena::{OwnedArena, SharedArena, ArenaStorage};
+

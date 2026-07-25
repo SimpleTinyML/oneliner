@@ -10,6 +10,8 @@ use std::path::PathBuf;
 use proc_macro2::TokenStream;
 use syn::Ident;
 
+use crate::args::ArenaArg;
+
 #[derive(Debug)]
 struct ArtifactPaths {
     model: PathBuf,
@@ -36,10 +38,14 @@ struct IreeArtifacts {
     output_tensor: signature::TensorArtifact,
 }
 
-pub fn expand(input_struct: syn::ItemStruct, model_path: PathBuf) -> syn::Result<TokenStream> {
+pub fn expand(
+    input_struct: syn::ItemStruct,
+    model_path: PathBuf,
+    arena: ArenaArg,
+) -> syn::Result<TokenStream> {
     let artifacts = artifacts::build(&input_struct.ident, model_path)?;
 
-    let expanded = codegen::expand(input_struct, artifacts);
+    let expanded = codegen::expand(input_struct, artifacts, arena);
     // eprintln!("generated:\n{expanded}");
     Ok(expanded.into())
 }

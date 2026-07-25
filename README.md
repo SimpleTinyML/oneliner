@@ -10,9 +10,8 @@ use OneLiner::runtime::ModelInference;
 struct MyModel;
 
 fn main() {
-    let mut workspace = MyModelWorkspace::new();
-    let mut model = MyModel::session(&mut workspace);
-    let mut input = MyModelSession::create_input_tensor();
+    let mut model = MyModel::new();
+    let mut input = MyModel::create_input_tensor();
     input.fill(1);
     let output = model.run(&input);
     println!("{} output elements", output.len());
@@ -62,6 +61,28 @@ use OneLiner::model;
 struct MyModel;
 ```
 
+IREE arenas are owned by the generated model and are not exposed as public
+workspace types. The default `arena = "owned"` gives every model instance an
+independent arena:
+
+```rust
+#[model("path/to/model.tflite", arena = "owned")]
+struct MyModel;
+```
+
+Use one synchronized static arena for all instances of a model type when RAM or
+stack space is more important than concurrent inference:
+
+```rust
+#[model("path/to/model.tflite", arena = "shared")]
+struct MyModel;
+```
+
+With the `ariel-os` feature, shared arenas use the Ariel OS blocking mutex.
+Other `no_std` targets use `critical-section` and must provide a platform
+critical-section implementation; the critical section covers the generated
+dispatch sequence.
+
 Select a backend explicitly:
 
 ```rust
@@ -69,16 +90,15 @@ Select a backend explicitly:
 struct MyModel;
 ```
 
-IREE model sessions use typed, allocation-free four-dimensional tensors. The
-macro derives the element type and four const dimensions from the model's
-`@main` signature. Each tensor owns an aligned nested array and exposes ndarray
-views with `view()` and `view_mut()`. `Tensor::from_array(...)` can move an
-existing nested array directly into the tensor:
+IREE models use typed four-dimensional tensors. The macro derives the element
+type and four const dimensions from the model's `@main` signature. Each tensor
+owns an aligned nested array and exposes ndarray views with `view()` and
+`view_mut()`. `Tensor::from_array(...)` can move an existing nested array
+directly into the tensor:
 
 ```rust
-let mut workspace = MyModelWorkspace::new();
-let mut model = MyModel::session(&mut workspace);
-let mut input = MyModelSession::create_input_tensor();
+let mut model = MyModel::new();
+let mut input = MyModel::create_input_tensor();
 input.fill(1);
 let output = model.run(&input);
 ```
@@ -229,22 +249,22 @@ Microflow can return typed outputs through `MicroflowModel`. OneLiner also
 implements the stateful `Predict<[u8]>` interface for Microflow-backed model
 values.
 
-Every IREE session borrows caller-owned workspace storage, while inference
-accepts and returns typed `Tensor<T, D1, D2, D3, D4>` values:
+Every IREE model owns or shares its private arena, while inference accepts and
+returns typed `Tensor<T, D1, D2, D3, D4>` values:
 
 ```rust
-let mut workspace = MyModelWorkspace::new();
-let mut model = MyModel::session(&mut workspace);
-let mut input = MyModelSession::create_input_tensor();
+let mut model = MyModel::new();
+let mut input = MyModel::create_input_tensor();
 input.fill(1);
 let output = model.run(&input);
 ```
 
-The generated flow contains no mutable global model buffers. Model constants
-remain immutable statics, input and output resources bind directly to the
-aligned arrays owned by the tensors passed through `ModelInference`, and only
-temporary resources are fields of the generated workspace. Tensor creation and
-inference do not require a global allocator.
+With `arena = "owned"`, each instance uses inline arena storage when `alloc` is
+disabled and boxed arena storage when `alloc` is enabled. With
+`arena = "shared"`, the model type initializes one static arena and serializes
+all inference that uses it. Model constants remain immutable statics, while
+input and output resources bind directly to the aligned arrays owned by the
+tensors passed through `ModelInference`.
 
 The proc-macro, and any built-in IREE compilation it performs, still runs on
 the host during Cargo builds and uses `std`; only the target runtime is
