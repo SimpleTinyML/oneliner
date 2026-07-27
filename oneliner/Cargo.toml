@@ -11,7 +11,7 @@ name = "OneLiner"
 default = ["iree-runtime"]
 alloc = []
 iree-runtime = []
-ariel-os = ["dep:ariel-os", "ariel-os/threading"]
+ariel-os = ["dep:ariel-os", "ariel-os/threading", "dep:heapless"]
 ndarray = ["dep:ndarray"]
 
 
@@ -24,3 +24,4 @@ defmt = { version = "1.0.0" }
 log = { version = "0.4.26"}
 aligned ={ version = "0.4.3" }
 portable-atomic = { version = "1", default-features = false }
+heapless ={ version = "0.9.3", optional = true}

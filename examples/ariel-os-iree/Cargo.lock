@@ -10,6 +10,7 @@ dependencies = [
  "ariel-os",
  "critical-section",
  "defmt",
+ "heapless 0.9.3",
  "log",
  "oneliner-macro",
  "portable-atomic",
