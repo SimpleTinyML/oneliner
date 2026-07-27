@@ -9,7 +9,7 @@ use super::super::common::rust_ident;
 use super::discovery::{find_stream_flow_ir, parse_query_function, validate_file};
 use super::metadata::load_metadata;
 use super::signature::{load_model_signature, TensorArtifact};
-use super::toolchain::{run_converter, run_iree_compile, run_tosa_converter};
+use super::toolchain::{run_converter, run_iree_compile, run_tosa_converter, run_onnx_converter};
 use super::{ArtifactPaths, BindingArtifact, IreeArtifacts};
 
 pub(super) fn build(struct_ident: &Ident, model_path: PathBuf) -> syn::Result<IreeArtifacts> {
@@ -34,7 +34,13 @@ pub(super) fn build(struct_ident: &Ident, model_path: PathBuf) -> syn::Result<Ir
         run_tosa_converter(&model_path, &imported_path)?;
         validate_file(&imported_path, "IREE imported TFLite MLIR")?;
         imported_path
-    } else {
+    } else if has_extension(&model_path, "onnx") {
+        let imported_path = artifact_dir.join(format!("{model_stem}.tosa.mlir"));
+        run_onnx_converter(&model_path, &imported_path)?;
+        validate_file(&imported_path, "IREE imported ONNX MLIR")?;
+        imported_path
+    } 
+    else {
         model_path.clone()
     };
 

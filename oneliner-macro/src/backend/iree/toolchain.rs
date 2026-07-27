@@ -14,6 +14,13 @@ pub(super) fn run_tosa_converter(input: &Path, output: &Path) -> syn::Result<()>
     run_command(&mut command, "tosa-converter-for-tflite")
 }
 
+pub(super) fn run_onnx_converter(input: &Path, output: &Path) -> syn::Result<()> {
+    let converter = OsString::from("iree-import-onnx");
+    let mut command = Command::new(converter);
+    command.arg("-o").arg(output).arg(input);
+    run_command(&mut command, "iree-import-onnx")
+}
+
 pub(super) fn run_iree_compile(
     compile_input: &Path,
     vmfb: &Path,
