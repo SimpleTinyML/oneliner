@@ -71,8 +71,6 @@ impl<T: 'static> SharedArena<T> {
         self.lock.acquire();
 
         let mut arena = unsafe { &mut *self.storage.val.get() };
-        // let val_ptr =  unsafe { self.val as *const T as *mut T};
-        // let mut arena = unsafe { &mut *val_ptr };
         let res = f(&mut arena);
         self.lock.release();
         res
@@ -81,22 +79,32 @@ impl<T: 'static> SharedArena<T> {
 
 /// Pure `no_std` fallback for targets without an OS-provided blocking mutex.
 #[cfg(not(feature = "ariel-os"))]
-pub struct SharedArena<T> {
-    inner: critical_section::Mutex<core::cell::RefCell<T>>,
+pub struct SharedArena<T: 'static> {
+    storage: &'static ArenaStorage<T>,
+    _dummy_mutex: critical_section::Mutex<core::cell::RefCell<u8>>,
 }
 
 #[cfg(not(feature = "ariel-os"))]
-impl<T> SharedArena<T> {
-    pub const fn new(value: T) -> Self {
+impl<T: 'static> SharedArena<T> {
+    pub const fn new(value: &'static ArenaStorage<T>) -> Self {
         Self {
-            inner: critical_section::Mutex::new(core::cell::RefCell::new(value)),
+            storage: value,
+            _dummy_mutex: critical_section::Mutex::new(core::cell::RefCell::new(42)),
         }
     }
 
     pub fn with<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
         critical_section::with(|cs| {
-            let mut arena = self.inner.borrow_ref_mut(cs);
-            f(&mut arena)
+            // Keep this guard alive for the entire closure.
+            // It detects recursive access to the same arena.
+            let _borrow =
+                self._dummy_mutex.borrow_ref_mut(cs);
+
+            let arena: &mut T = unsafe {
+                &mut *self.storage.val.get()
+            };
+
+            f(arena)
         })
     }
 }
