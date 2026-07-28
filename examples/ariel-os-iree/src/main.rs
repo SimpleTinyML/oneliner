@@ -8,6 +8,8 @@ use ariel_os::time;
 use OneLiner::model;
 use OneLiner::runtime::{ModelInference, ModelSource};
 
+use static_cell::ConstStaticCell;
+
 #[model(
     "models/mcunet-10fps_vww.tflite",
     backend = "iree",
@@ -24,7 +26,10 @@ const EXPECTED: [i8; 2] = [4, -5];
 // const OUTPUT_LEN: usize = 10 * 4;
 // const EXPECTED: [u8; OUTPUT_LEN] = [0; OUTPUT_LEN];
 
-#[ariel_os::thread(autostart, priority = 1)]
+// static INPUT_CELL: ConstStaticCell<<Model as ModelInference>::InputTensor> = ConstStaticCell::new(<Model as ModelInference>::InputTensor::new(0));
+
+#[ariel_os::thread(autostart, priority = 1, stacksize=20480)]
+// #[ariel_os::thread(autostart, priority = 1)]
 fn main() {
     let artifacts = <Model as ModelSource>::ARTIFACTS;
     info!(
@@ -42,6 +47,7 @@ fn main() {
     }
     let mut model = Model::new();
     let mut input = Model::create_input_tensor();
+    // let mut input = INPUT_CELL.take();
     input.fill(7);
     let time_begin_us = time::Instant::now().as_micros();
     let output = model.run(&input);

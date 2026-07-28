@@ -2164,6 +2164,7 @@ dependencies = [
  "OneLiner",
  "ariel-os",
  "ariel-os-boards",
+ "static_cell",
 ]
 
 [[package]]
