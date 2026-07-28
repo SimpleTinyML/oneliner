@@ -28,17 +28,19 @@ impl<T, const D1: usize, const D2: usize, const D3: usize, const D4: usize>
 
     pub const LEN: usize = D1 * D2 * D3 * D4;
 
+    pub const fn new(value: T) -> Self
+    where
+        T: Copy, 
+    {
+        Self {
+            storage: Aligned([[[[value; D4]; D3]; D2]; D1])
+        }
+    }
+
     pub const fn from_array(storage: TensorArray<T, D1, D2, D3, D4>) -> Self {
         Self {
             storage: Aligned(storage),
         }
-    }
-
-    pub fn filled(value: T) -> Self
-    where
-        T: Copy,
-    {
-        Self::from_array([[[[value; D4]; D3]; D2]; D1])
     }
 
     pub fn as_slice(&self) -> &[T] {

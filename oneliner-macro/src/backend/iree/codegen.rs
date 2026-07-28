@@ -196,7 +196,7 @@ pub(super) fn expand(
             >;
 
             fn create_input_tensor() -> Self::InputTensor {
-                Self::InputTensor::filled(0 as #input_type)
+                Self::InputTensor::new(0 as #input_type)
             }
 
             fn run(&mut self, input: &Self::InputTensor) -> Self::OutputTensor {
@@ -205,7 +205,7 @@ pub(super) fn expand(
                     input.byte_len(),
                 );
 
-                let mut output = Self::OutputTensor::filled(0 as #output_type);
+                let mut output = Self::OutputTensor::new(0 as #output_type);
                 let output_buffer = ::OneLiner::runtime::BufferMut::new(
                     output.as_mut_ptr().cast::<u8>(),
                     output.byte_len(),
