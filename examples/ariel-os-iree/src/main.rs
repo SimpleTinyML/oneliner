@@ -11,7 +11,7 @@ use OneLiner::runtime::{ModelInference, ModelSource};
 use static_cell::ConstStaticCell;
 
 // #[model(
-//     "models/mcunet-10fps_vww.tflite",
+//     "../models/mcunet-10fps_vww.tflite",
 //     backend = "iree",
 //     arena = "shared"
 // )]
@@ -19,7 +19,7 @@ use static_cell::ConstStaticCell;
 // const INPUT_LEN: usize = 64 * 64 * 3;
 // const EXPECTED: [i8; 2] = [4, -5];
 
-#[model("models/lenet5_quantized.tflite", backend = "iree")]
+#[model("../models/lenet5_quantized.tflite", backend = "iree")]
 struct Model;
 const INPUT_LEN: usize = 28 * 28 * 1;
 const OUTPUT_LEN: usize = 10;
