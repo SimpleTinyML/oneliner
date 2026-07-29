@@ -512,7 +512,7 @@ def parse_ranges(range_text: str, constants: dict[str, int]) -> list[TensorRange
 
 
 def parse_dispatch(head: str, body: str, constants: dict[str, int], func_workloads) -> DispatchCall:
-    match = re.search(r"stream\.cmd\.dispatch\s+(?P<callee>@\w+(::@\w+)*)(?P<tail>.*)", head, re.DOTALL)
+    match = re.search(r"stream\.cmd\.dispatch\s+(?P<callee>@[\w$]+(::@[\w$]+)*)(?P<tail>.*)", head, re.DOTALL)
     if not match:
         raise StreamExtractionError(f"could not parse dispatch head: {head.strip()}")
     callee = match.group("callee").strip()
@@ -525,9 +525,7 @@ def parse_dispatch(head: str, body: str, constants: dict[str, int], func_workloa
     executable, function = split_symbol_ref(callee)
     workload = tuple()
     ordinal = (
-        int(executable.removeprefix("main_dispatch_"))
-        if executable.startswith("main_dispatch_")
-        else 0
+        int(re.sub(r".*_dispatch_", "", executable))
     )
     for item in func_workloads:
         if item["function"] == function:

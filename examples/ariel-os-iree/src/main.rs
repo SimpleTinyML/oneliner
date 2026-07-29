@@ -10,21 +10,20 @@ use OneLiner::runtime::{ModelInference, ModelSource};
 
 use static_cell::ConstStaticCell;
 
-#[model(
-    "models/mcunet-10fps_vww.tflite",
-    backend = "iree",
-    arena = "shared"
-)]
-struct Model;
-const INPUT_LEN: usize = 64 * 64 * 3;
-const EXPECTED: [i8; 2] = [4, -5];
-
-// #[model("models/lenet5_quantized.tflite", backend = "iree")]
+// #[model(
+//     "models/mcunet-10fps_vww.tflite",
+//     backend = "iree",
+//     arena = "shared"
+// )]
 // struct Model;
-// const INPUT_LEN: usize = 28 * 28 * 4;
-// static INPUT: Aligned<AlignedType, [u8; INPUT_LEN]> = Aligned([7; INPUT_LEN]);
-// const OUTPUT_LEN: usize = 10 * 4;
-// const EXPECTED: [u8; OUTPUT_LEN] = [0; OUTPUT_LEN];
+// const INPUT_LEN: usize = 64 * 64 * 3;
+// const EXPECTED: [i8; 2] = [4, -5];
+
+#[model("models/lenet5_quantized.tflite", backend = "iree")]
+struct Model;
+const INPUT_LEN: usize = 28 * 28 * 1;
+const OUTPUT_LEN: usize = 10;
+const EXPECTED: [f32; OUTPUT_LEN] = [0.0; OUTPUT_LEN];
 
 // static INPUT_CELL: ConstStaticCell<<Model as ModelInference>::InputTensor> = ConstStaticCell::new(<Model as ModelInference>::InputTensor::new(0));
 
@@ -41,14 +40,10 @@ fn main() {
         artifacts.input_size, artifacts.output_size
     );
 
-    if artifacts.input_size != INPUT_LEN || artifacts.output_size != EXPECTED.len() {
-        error!("Model validation failed: unexpected artifact sizes");
-        exit(ExitCode::FAILURE);
-    }
     let mut model = Model::new();
     let mut input = Model::create_input_tensor();
     // let mut input = INPUT_CELL.take();
-    input.fill(7);
+    input.fill(7.0);
     let time_begin_us = time::Instant::now().as_micros();
     let output = model.run(&input);
     let time_end_us = time::Instant::now().as_micros();

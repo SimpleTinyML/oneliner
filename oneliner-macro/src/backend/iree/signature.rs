@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 
+use onnx_extractor::{DataType, Graph, Model, Tensor};
 use proc_macro2::Span;
 
 #[derive(Debug, Clone, Copy)]
@@ -65,7 +66,18 @@ pub(super) struct ModelSignature {
     pub output: TensorArtifact,
 }
 
-pub(super) fn load_model_signature(path: &Path) -> syn::Result<ModelSignature> {
+pub(super) fn load_model_signature(
+    model_path: &Path,
+    compile_input_path: &Path,
+) -> syn::Result<ModelSignature> {
+    if has_extension(model_path, "onnx") {
+        load_onnx_model_signature(model_path)
+    } else {
+        load_mlir_model_signature(compile_input_path)
+    }
+}
+
+fn load_mlir_model_signature(path: &Path) -> syn::Result<ModelSignature> {
     let text = fs::read_to_string(path).map_err(|error| {
         syn::Error::new(
             Span::call_site(),
@@ -78,11 +90,113 @@ pub(super) fn load_model_signature(path: &Path) -> syn::Result<ModelSignature> {
     parse_model_signature(&text, path)
 }
 
+fn load_onnx_model_signature(path: &Path) -> syn::Result<ModelSignature> {
+    let model = Model::load_from_file(path)
+        .map_err(|parse_error| error(path, format!("failed to parse ONNX model: {parse_error}")))?;
+    let graph = model.graph();
+
+    let input = exactly_one_onnx_tensor(graph, graph.inputs(), path, "input")?;
+    let output = exactly_one_onnx_tensor(graph, graph.outputs(), path, "output")?;
+
+    Ok(ModelSignature { input, output })
+}
+
+fn exactly_one_onnx_tensor(
+    graph: &Graph,
+    tensor_names: &[String],
+    path: &Path,
+    label: &str,
+) -> syn::Result<TensorArtifact> {
+    if tensor_names.len() != 1 {
+        return Err(error(
+            path,
+            format!(
+                "ModelInference requires exactly one {label} tensor, but the ONNX graph declares {}",
+                tensor_names.len()
+            ),
+        ));
+    }
+
+    let tensor_name = tensor_names.first().expect("length was checked");
+    let tensor = graph.tensors().get(tensor_name).ok_or_else(|| {
+        error(
+            path,
+            format!("ONNX graph {label} tensor '{tensor_name}' has no type information"),
+        )
+    })?;
+    parse_onnx_tensor(tensor, path, label)
+}
+
+fn parse_onnx_tensor(
+    tensor: &Tensor,
+    path: &Path,
+    label: &str,
+) -> syn::Result<TensorArtifact> {
+    let element_type = parse_onnx_element_type(tensor.data_type()).ok_or_else(|| {
+        error(
+            path,
+            format!(
+                "unsupported ONNX graph {label} tensor element type '{:?}' for '{name}'",
+                tensor.data_type(),
+                name = tensor.name()
+            ),
+        )
+    })?;
+
+    let dimensions = tensor.shape();
+    if dimensions.len() > 4 {
+        return Err(error(
+            path,
+            format!(
+                "ONNX graph {label} tensor '{name}' rank {} exceeds Tensor's four dimensions",
+                dimensions.len(),
+                name = tensor.name()
+            ),
+        ));
+    }
+
+    let mut shape = [1usize; 4];
+    let shape_offset = 4 - dimensions.len();
+    for (index, dimension) in dimensions.iter().enumerate() {
+        shape[shape_offset + index] = usize::try_from(*dimension).map_err(|_| {
+            error(
+                path,
+                format!(
+                    "ONNX graph {label} tensor '{name}' has a dynamic dimension",
+                    name = tensor.name()
+                ),
+            )
+        })?;
+    }
+
+    Ok(TensorArtifact {
+        element_type,
+        shape,
+    })
+}
+
+fn parse_onnx_element_type(value: DataType) -> Option<ElementType> {
+    match value {
+        DataType::Int8 => Some(ElementType::I8),
+        DataType::Int16 => Some(ElementType::I16),
+        DataType::Int32 => Some(ElementType::I32),
+        DataType::Int64 => Some(ElementType::I64),
+        DataType::Uint8 => Some(ElementType::U8),
+        DataType::Uint16 => Some(ElementType::U16),
+        DataType::Uint32 => Some(ElementType::U32),
+        DataType::Uint64 => Some(ElementType::U64),
+        DataType::Float => Some(ElementType::F32),
+        DataType::Double => Some(ElementType::F64),
+        _ => None,
+    }
+}
+
 fn parse_model_signature(text: &str, path: &Path) -> syn::Result<ModelSignature> {
+    //TODO: temp fix
     let main_offset = text
-        .find("@main")
+        .find("func.func")
         .ok_or_else(|| error(path, "model does not contain an @main entry function"))?;
-    let after_main = &text[main_offset + "@main".len()..];
+    let after_main = &text[main_offset + "func.func".len()..];
     let input_open = after_main
         .find('(')
         .ok_or_else(|| error(path, "@main does not contain an input argument list"))?;
@@ -257,4 +371,10 @@ fn error(path: &Path, message: impl std::fmt::Display) -> syn::Error {
             path.display()
         ),
     )
+}
+
+fn has_extension(path: &Path, expected: &str) -> bool {
+    path.extension()
+        .and_then(std::ffi::OsStr::to_str)
+        .is_some_and(|extension| extension.eq_ignore_ascii_case(expected))
 }

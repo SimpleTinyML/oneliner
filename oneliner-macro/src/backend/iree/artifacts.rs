@@ -56,7 +56,7 @@ pub(super) fn build(struct_ident: &Ident, model_path: PathBuf) -> syn::Result<Ir
     validate_file(&metadata_json, "generated IREE metadata JSON")?;
 
     let metadata = load_metadata(&metadata_json)?;
-    let signature = load_model_signature(&compile_input_path)?;
+    let signature = load_model_signature(&model_path, &compile_input_path)?;
     let input = metadata
         .input
         .ok_or_else(|| call_site_error("IREE metadata does not contain an input binding"))?;
