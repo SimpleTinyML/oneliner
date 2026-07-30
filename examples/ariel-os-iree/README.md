@@ -1,46 +1,98 @@
-# OneLiner Ariel OS IREE Example
+# OneLiner + IREE on Ariel OS
 
-This example validates the OneLiner IREE backend from an Ariel OS app with a
-quantized MCUNet visual wake-word model.
+This example runs a OneLiner model inside a `no_std` Ariel OS thread. It demonstrates that the same one-line model binding used on desktop can produce target-native inference code for an operating-system-based embedded application.
 
-It builds the model at Rust compile time, links the generated static
-object, runs the generated dispatch flow in a `no_std` Ariel OS thread, and exits
-successfully only when the typed output tensor matches the expected result.
+```rust
+#[model("../models/lenet5_quantized.tflite", backend = "iree")]
+struct Model;
+```
 
-The model uses `arena = "shared"`, so the macro initializes one private static
-arena and synchronizes access from every `Model` instance. The input and output
-bindings point directly at tensor values created locally in `main`, while only
-temporary buffers belong to the shared arena.
+## What This Example Shows
 
-The active model is `models/mcunet-10fps_vww.tflite`:
+- Build-time TFLite import and IREE compilation
+- A fully typed model API in `no_std`
+- Inference from an Ariel OS thread
+- Model artifact size logging
+- On-target inference timing
+- Process exit status based on output comparison
 
-- input: `Tensor<i8, 1, 64, 64, 3>`
-- output: `Tensor<i8, 1, 1, 1, 2>`
-- expected validation: input elements filled with `7` -> `[4, -5]`
+## Active Model
 
-## Build
+The example currently uses `../models/lenet5_quantized.tflite`:
+
+- input: `Tensor<f32, 1, 28, 28, 1>`
+- output: `Tensor<f32, 1, 1, 1, 10>`
+- input data: every element is filled with `7.0`
+- memory mode: `owned`, the OneLiner default
+
+`EXPECTED` is currently a ten-element zero-filled placeholder. Replace it with reference output from your own validation data before using the comparison as a model-correctness test.
+
+## Prerequisites
+
+Install the Python/IREE model toolchain described in the [project README](../../README.md#1-install-the-host-model-toolchain), and keep that environment active while building.
+
+You also need:
+
+- Rust 1.94 or newer for the configured Ariel OS release
+- [Laze](https://github.com/kas-gui/laze)
+- network access on the first build so Laze can fetch Ariel OS
+
+This example tracks Ariel OS `v0.4.0` through `laze-project.yml`.
+
+## Build for the Native Board
 
 From this directory:
 
 ```sh
-conda run -n ariel_ml laze build -b native
+laze build -b native
 ```
 
-To run the native board:
+Build and run the native application:
 
 ```sh
-conda run -n ariel_ml laze build -b native run --bin oneliner-ariel-os-iree
+laze build -b native run --bin oneliner-ariel-os-iree
 ```
 
-This example tracks Ariel OS `v0.4.0`, the latest release tag available when it
-was added. Ariel OS `v0.4.0` requires Rust 1.94 or newer. The OneLiner IREE
-backend needs `iree-compile` on `PATH`. For `.tflite` models it also needs
-`tosa-converter-for-tflite` on `PATH`.
+If your toolchain is stored in a Conda environment, prefix the commands with `conda run -n <environment>`.
 
-## Hardware Boards
+## Expected Behavior
 
-The example is intentionally small, but the IREE backend still compiles a native
-object for the active Cargo target. For non-native boards, make sure your IREE
-toolchain supports the target triple selected by Ariel OS, or set
-`ONELINER_IREE_TARGET_TRIPLE`, `ONELINER_IREE_TARGET_CPU`, and
-`ONELINER_IREE_CPU_FEATURES` as needed.
+The application:
+
+1. reports the active Ariel OS board;
+2. reports the generated input and output artifact sizes;
+3. fills the typed input tensor with `7.0`;
+4. runs inference and reports elapsed microseconds;
+5. compares the result with `EXPECTED`;
+6. exits with success or failure.
+
+Because the bundled `EXPECTED` value is a placeholder, a failure exit does not by itself indicate that model compilation or dispatch failed.
+
+## Using Shared Memory
+
+The active example uses the default per-instance workspace. To let every `Model` instance share one synchronized static workspace, change the binding to:
+
+```rust
+#[model(
+    "../models/lenet5_quantized.tflite",
+    backend = "iree",
+    arena = "shared"
+)]
+struct Model;
+```
+
+The `ariel-os` feature is already enabled for OneLiner in this example.
+
+## Building for Hardware
+
+Select a board supported by the configured Ariel OS release instead of `native`. OneLiner derives the IREE target from the Rust target chosen by Ariel OS.
+
+## Switching Models
+
+Change the path in `#[model(...)]`, then update:
+
+- the input preparation;
+- the `EXPECTED` element type and values;
+- any stack-size or memory decisions required by the new model.
+
+For the fastest first check of a new model, use the [desktop example](../std-iree/) before cross-compiling it for Ariel OS.

@@ -1,292 +1,160 @@
 # OneLiner
 
-`OneLiner` provides a Rust attribute macro named `model`:
+> **Model inference with one-line code.**
+
+OneLiner turns a model file into a callable Rust type with one attribute:
+
+```rust
+#[model("models/model.tflite")]
+struct MyModel;
+```
+
+At build time, OneLiner imports the model, compiles it for the selected Rust target, generates the Rust binding, and links the native model code. At runtime, your application works with ordinary, strongly typed Rust tensors.
 
 ```rust
 use OneLiner::model;
 use OneLiner::runtime::ModelInference;
 
-#[model("path/to/model.tflite")]
+#[model("models/model.tflite")]
 struct MyModel;
 
 fn main() {
     let mut model = MyModel::new();
     let mut input = MyModel::create_input_tensor();
     input.fill(1);
+
     let output = model.run(&input);
-    println!("{} output elements", output.len());
+    println!("{:?}", output.as_slice());
 }
 ```
 
-The macro is backend-oriented. IREE is the built-in default backend. Microflow
-is the pure Rust backend for runtimes that do not need compile-time compiler or
-IREE dispatch generation.
+## Why OneLiner?
 
-## Rust Usage
+- **One-line model binding:** Replace conversion scripts, native linking setup, tensor declarations, and dispatch glue with `#[model(...)]`.
+- **Typed inputs and outputs:** Tensor element types and shapes come from the model, so mismatches surface during the build instead of on the device.
+- **Made for local inference:** The model is compiled into target-native code. Inference does not depend on a cloud service.
+- **Embedded-ready:** The runtime supports `no_std` and is demonstrated with Ariel OS and Embassy on RP2040.
+- **No Python on the target:** Python and IREE are host-side build tools only.
+- **Memory-aware by design:** Choose independent per-instance workspaces or one synchronized shared workspace.
 
-Add the runtime crate to a Rust package:
+## Quick Start
+
+### 1. Install the host model toolchain
+
+Python 3.10 or newer is required. A virtual environment keeps the compiler tools isolated from the rest of your system:
+
+```sh
+pip install "iree-base-compiler[onnx]" tosa-converter-for-tflite
+```
+
+Verify the installation:
+
+```sh
+iree-compile --version
+tosa-converter-for-tflite --version
+iree-import-onnx --help
+```
+
+The packages provide:
+
+- `iree-base-compiler`: the IREE compiler used for every model
+- `iree-base-compiler[onnx]`: ONNX import support
+- `tosa-converter-for-tflite`: TFLite-to-TOSA import support
+
+If you only use MLIR input, `iree-base-compiler` is sufficient.
+
+### 2. Add OneLiner
+
+Add the local crate to your application's `Cargo.toml`:
 
 ```toml
 [dependencies]
-OneLiner = { path = "path/to/this/workspace/oneliner" }
+OneLiner = { path = "path/to/oneliner/oneliner" }
 ```
 
-For `no_std` targets, disable default features:
+For an embedded `no_std` application:
 
 ```toml
 [dependencies]
-OneLiner = { path = "path/to/this/workspace/oneliner", default-features = false }
+OneLiner = {
+    path = "path/to/oneliner/oneliner",
+    default-features = false,
+    features = ["iree-runtime"]
+}
 ```
 
-If you want owned output bytes in `no_std` with an allocator, enable `alloc`:
+### 3. Bind and run a model
 
-```toml
-[dependencies]
-OneLiner = { path = "path/to/this/workspace/oneliner", default-features = false, features = ["alloc"] }
-```
-
-For an IREE-generated static flow on `no_std`, also enable `iree-runtime`:
-
-```toml
-[dependencies]
-OneLiner = { path = "path/to/this/workspace/oneliner", default-features = false, features = ["iree-runtime"] }
-```
-
-Use the default IREE backend:
+Model paths are resolved relative to the application's `Cargo.toml`.
 
 ```rust
 use OneLiner::model;
+use OneLiner::runtime::ModelInference;
 
-#[model("path/to/model.tflite")]
+#[model("models/model.tflite")]
 struct MyModel;
-```
 
-IREE arenas are owned by the generated model and are not exposed as public
-workspace types. The default `arena = "owned"` gives every model instance an
-independent arena:
-
-```rust
-#[model("path/to/model.tflite", arena = "owned")]
-struct MyModel;
-```
-
-Use one synchronized static arena for all instances of a model type when RAM or
-stack space is more important than concurrent inference:
-
-```rust
-#[model("path/to/model.tflite", arena = "shared")]
-struct MyModel;
-```
-
-With the `ariel-os` feature, shared arenas use the Ariel OS blocking mutex.
-Other `no_std` targets use `critical-section` and must provide a platform
-critical-section implementation; the critical section covers the generated
-dispatch sequence.
-
-Select a backend explicitly:
-
-```rust
-#[model("path/to/model.microflow", backend = "microflow")]
-struct MyModel;
-```
-
-IREE models use typed four-dimensional tensors. The macro derives the element
-type and four const dimensions from the model's `@main` signature. Each tensor
-owns an aligned nested array and exposes ndarray views with `view()` and
-`view_mut()`. `Tensor::from_array(...)` can move an existing nested array
-directly into the tensor:
-
-```rust
 let mut model = MyModel::new();
 let mut input = MyModel::create_input_tensor();
-input.fill(1);
+input.as_slice_mut().copy_from_slice(&input_data);
+
 let output = model.run(&input);
+let values = output.as_slice();
 ```
 
-Generated artifact paths are available for debugging:
+OneLiner generates the input and output tensor types directly from the model. The application does not need to repeat their data types or dimensions.
+
+## Examples
+
+Each example is an independent Cargo project. Run its commands from the example directory with the Python environment activated.
+
+| Example | What it demonstrates | Active model |
+| --- | --- | --- |
+| [Desktop IREE](examples/std-iree/) | The shortest end-to-end validation path on a standard host | Quantized MCUNet visual wake word |
+| [Ariel OS + IREE](examples/ariel-os-iree/) | `no_std`, Ariel OS threads, native-board validation, and inference timing | Quantized LeNet5 |
+| [Embassy + IREE on Pico](examples/embassy-pico-iree/) | Bare-metal RP2040, shared model workspace, static input storage, and `defmt` logging | Quantized LeNet5 |
+
+Start with the [desktop example](examples/std-iree/) to confirm the model toolchain, then move to the operating system or board example that matches your target.
+
+## Supported Models
+
+The built-in IREE backend currently accepts:
+
+- TFLite
+- ONNX
+- MLIR accepted by IREE
+
+The generated `ModelInference` API currently targets fixed-shape models with:
+
+- exactly one input tensor
+- exactly one output tensor
+- up to four dimensions
+
+Integer and floating-point tensor element types are inferred automatically.
+
+## Memory Modes
+
+The default `owned` mode gives each model instance an independent workspace:
 
 ```rust
-use OneLiner::runtime::ModelSource;
-
-println!("{:#?}", MyModel::ARTIFACTS);
-```
-
-## Built-In IREE Backend
-
-The IREE backend compiles the model at Rust compile time. For `.tflite` inputs
-it first converts the FlatBuffer to TOSA MLIR with `tosa-converter-for-tflite`, then asks
-IREE to emit the model object file, finds the stage-10 executable-targets IR,
-runs `iree_stream_flow_to_rust_using_re.py`, and includes the generated Rust
-flow.
-
-Required tools:
-
-- `tosa-converter-for-tflite` on `PATH`, or `ONELINER_TOSA_CONVERTER_FOR_TFLITE=/path/to/tosa-converter-for-tflite`
-- `iree-compile` on `PATH`, or `ONELINER_IREE_COMPILE=/path/to/iree-compile`
-- `python` with `iree-compiler` installed, or `ONELINER_PYTHON=/path/to/python`
-
-Default IREE flags:
-
-```powershell
-tosa-converter-for-tflite model.tflite --text -o <OUT_DIR>/model.tosa.mlir
-
-iree-compile <OUT_DIR>/model.tosa.mlir `
-  --iree-hal-target-device=local `
-  --iree-hal-local-target-device-backends=llvm-cpu `
-  --iree-llvmcpu-target-triple=<TARGET> `
-  --iree-llvmcpu-target-cpu=<target-cpu> `
-  --iree-llvmcpu-target-cpu-features=<target-features> `
-  --iree-stream-partitioning-favor=min-peak-memory `
-  --iree-llvmcpu-link-embedded=false `
-  --iree-llvmcpu-link-static `
-  --iree-llvmcpu-static-library-output-path=<OUT_DIR>/model.o `
-  --dump-compilation-phases-to=<OUT_DIR>/iree-ir-dumps `
-  -o <OUT_DIR>/model.vmfb
-```
-
-IREE-specific environment overrides:
-
-- `ONELINER_TOSA_CONVERTER_FOR_TFLITE`
-- `ONELINER_IREE_TARGET_TRIPLE`
-- `ONELINER_IREE_TARGET_CPU`
-- `ONELINER_IREE_CPU_FEATURES`
-- `ONELINER_IREE_COMPILE_FLAGS`
-- `ONELINER_IREE_STREAM_FLOW_TO_RUST`
-
-The older `IREE_*` / `IREE_MODEL_*` variable names are still accepted as
-fallbacks where they existed before.
-
-## Microflow Backend
-
-Use `backend = "microflow"` and implement the Microflow runtime trait for the
-generated model:
-
-```rust
-use OneLiner::model;
-
-#[model("path/to/model.microflow", backend = "microflow")]
+#[model("models/model.tflite")]
 struct MyModel;
-
-impl OneLiner::runtime::MicroflowModel for MyModel {
-    type Error = MyError;
-    type Output = MyOutput;
-
-    fn try_predict_microflow(input: &[u8]) -> Result<Self::Output, Self::Error> {
-        run_microflow(include_bytes!("path/to/model.microflow"), input)
-    }
-}
 ```
 
-Microflow models implement `Predict` directly and do not need an IREE
-workspace:
+This is the natural choice when model instances may run concurrently.
+
+The `shared` mode keeps one synchronized static workspace for all instances of a model type:
 
 ```rust
-let mut model = MyModel;
-let output = model.predict(input);
-let output = model.try_predict(input)?;
+#[model("models/model.tflite", arena = "shared")]
+struct MyModel;
 ```
 
-Microflow does not use a compiler, generated Rust flow, IREE dispatch helpers,
-or native linking.
+Use it when reducing duplicate RAM use matters more than concurrent inference. The Pico example demonstrates this configuration.
 
-## Linking Note
 
-The built-in IREE backend links its generated native object with a
-`#[link(..., modifiers = "+verbatim")]` extern block. Microflow does not use
-this path. `cargo:rustc-link-arg=...` only works when printed by a
-`build.rs`; proc-macro stdout is not interpreted as Cargo build-script
-directives.
+## Project Status
 
-## Runtime And no_std
+OneLiner is currently at version `0.1.0`. The project focuses on making fixed-shape, single-input, single-output inference straightforward across desktop Rust and memory-constrained `no_std` targets.
 
-The `oneliner` runtime crate supports:
-
-- `std` default feature: implements `std::error::Error` and enables `alloc`.
-- `alloc` feature: enables `Prediction::from_bytes`, `Prediction::into_bytes`,
-  and `Predict::try_predict_owned`.
-- `iree-runtime` feature: enables IREE local executable ABI helpers such as
-  `dispatch`, `try_dispatch`, and HAL dispatch-state structs.
-- no default features: pure `no_std` runtime without the IREE dispatch helpers.
-
-The public runtime surface is intentionally small:
-
-```rust
-pub trait Predict<Input: ?Sized = [u8]> {
-    type Error;
-    type Output<'prediction>
-    where
-        Self: 'prediction;
-
-    fn try_predict<'prediction>(
-        &'prediction mut self,
-        input: &Input,
-    ) -> Result<Self::Output<'prediction>, Self::Error>;
-}
-
-pub trait ModelInference {
-    type InputTensor;
-    type OutputTensor;
-
-    fn run(&mut self, input: &Self::InputTensor) -> Self::OutputTensor;
-    fn create_input_tensor() -> Self::InputTensor;
-}
-
-pub trait ModelSource {
-    const MODEL_PATH: &'static str;
-    const ARTIFACTS: ModelArtifacts;
-}
-
-pub trait MicroflowModel: ModelSource {
-    type Error;
-    type Output;
-
-    fn try_predict_microflow(input: &[u8]) -> Result<Self::Output, Self::Error>;
-}
-
-```
-
-Microflow can return typed outputs through `MicroflowModel`. OneLiner also
-implements the stateful `Predict<[u8]>` interface for Microflow-backed model
-values.
-
-Every IREE model owns or shares its private arena, while inference accepts and
-returns typed `Tensor<T, D1, D2, D3, D4>` values:
-
-```rust
-let mut model = MyModel::new();
-let mut input = MyModel::create_input_tensor();
-input.fill(1);
-let output = model.run(&input);
-```
-
-With `arena = "owned"`, each instance uses inline arena storage when `alloc` is
-disabled and boxed arena storage when `alloc` is enabled. With
-`arena = "shared"`, the model type initializes one static arena and serializes
-all inference that uses it. Model constants remain immutable statics, while
-input and output resources bind directly to the aligned arrays owned by the
-tensors passed through `ModelInference`.
-
-The proc-macro, and any built-in IREE compilation it performs, still runs on
-the host during Cargo builds and uses `std`; only the target runtime is
-`no_std`.
-
-## Source Layout
-
-- `oneliner/src/runtime/interface.rs`: public runtime traits and shared metadata.
-- `oneliner/src/runtime/microflow.rs`: Microflow runtime trait.
-- `oneliner/src/runtime/prediction.rs`: byte prediction value type.
-- `oneliner/src/runtime/buffer.rs`: caller-owned aligned-buffer helpers.
-- `oneliner/src/runtime/iree.rs`: optional IREE local executable runtime helpers.
-- `oneliner-macro/src/backend/microflow.rs`: Microflow backend expansion.
-- `oneliner-macro/src/backend/iree.rs`: IREE expansion entry point.
-- `oneliner-macro/src/backend/iree/`: artifact, metadata, toolchain, discovery, and codegen modules.
-
-## Flow Converter CLI
-
-The existing IREE flow converter is still available directly:
-
-```powershell
-python iree_stream_flow_to_rust_using_re.py .\stream.mlir -o .\stream_flow.rs
-```
-
-It parses IREE Stream/Flow/HAL MLIR and renders a Rust call-flow skeleton.
+The examples are intentionally small and explicit. They are designed to help you validate the toolchain, understand the memory trade-offs, and replace the bundled model with your own.
