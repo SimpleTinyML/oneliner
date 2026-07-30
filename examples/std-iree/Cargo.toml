@@ -1,0 +1,9 @@
+[package]
+name = "std-iree"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+OneLiner = { path = "../../oneliner", default-features = false, features = ["iree-runtime",] }
+log = { version = "0.4"}
+env_logger = "0.11"
