@@ -1,0 +1,11 @@
+[package]
+name = "std-microflow"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+OneLiner = {
+    path = "../../oneliner",
+    default-features = false,
+    features = ["microflow-runtime"]
+}

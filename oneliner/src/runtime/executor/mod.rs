@@ -4,6 +4,8 @@ mod ariel_os;
 #[cfg(feature = "ariel-os")]
 pub use ariel_os::ArielOsExecutor;
 
+#[cfg(feature = "iree-runtime")]
+
 use super::{
     iree_hal_executable_dispatch_state_v0_t, iree_hal_executable_environment_v0_t,
     iree_hal_executable_workgroup_state_v0_t, DispatchFn,
@@ -17,6 +19,8 @@ pub struct WorkItem {
 
 #[derive(Clone, Copy)]
 enum WorkItemKind {
+    
+    #[cfg(feature = "iree-runtime")]
     IREEWorkload {
         dispatch_fn: DispatchFn,
         environment: *mut iree_hal_executable_environment_v0_t,
@@ -27,11 +31,14 @@ enum WorkItemKind {
 }
 
 impl WorkItem {
+
+    #[cfg(feature = "iree-runtime")]
     /// Creates a work item borrowing dispatch state owned by the caller.
     ///
     /// # Safety
     ///
     /// All pointers must remain valid until the executor reports completion.
+    /// 
     pub(crate) unsafe fn iree(
         dispatch_fn: DispatchFn,
         environment: *mut iree_hal_executable_environment_v0_t,
@@ -52,6 +59,8 @@ impl WorkItem {
 
     pub(crate) fn run(self) {
         match self.kind {
+            
+            #[cfg(feature = "iree-runtime")]
             WorkItemKind::IREEWorkload {
                 dispatch_fn,
                 environment,

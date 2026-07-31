@@ -7,5 +7,11 @@ pub use oneliner_macro::model;
 
 pub mod runtime;
 
-pub use runtime::{ModelArtifacts};
+/// Implementation details used by code generated from `#[model]`.
+#[doc(hidden)]
+pub mod __private {
+    #[cfg(feature = "microflow-runtime")]
+    pub use microflow;
+}
 
+pub use runtime::ModelArtifacts;

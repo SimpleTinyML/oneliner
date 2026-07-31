@@ -2,7 +2,6 @@ mod arena;
 mod buffer;
 mod executor;
 mod interface;
-mod microflow;
 
 #[cfg(feature = "iree-runtime")]
 mod iree;
@@ -11,14 +10,15 @@ pub use buffer::{
     concurrent, fill, Access,
     BufferRange, Buffer, BufferMut, BufferSource, AnyBufferRange, AnyBuffer
 };
+
 #[cfg(feature = "ariel-os")]
 pub use executor::ArielOsExecutor;
+
 pub use executor::{DefaultExecutor, Executor, SequentialExecutor, WorkItem};
 pub use interface::{
     Error, ModelArtifacts, ModelInference, ModelSource, Shape, Tensor, Tensor4D,
     TensorArray,
 };
-pub use microflow::MicroflowModel;
 
 #[cfg(feature = "iree-runtime")]
 pub use iree::{
@@ -34,4 +34,3 @@ pub type AlignedType = A64;
 
 
 pub use arena::{OwnedArena, SharedArena, ArenaStorage};
-

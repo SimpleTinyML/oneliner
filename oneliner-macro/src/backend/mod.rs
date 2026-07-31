@@ -58,6 +58,6 @@ pub fn expand(args: ModelArgs, input_struct: ItemStruct) -> syn::Result<proc_mac
 
     match args.backend {
         BackendArg::Iree => iree::expand(input_struct, model_path, args.arena),
-        BackendArg::Microflow => Ok(microflow::expand(input_struct, model_path)),
+        BackendArg::Microflow => microflow::expand(input_struct, model_path),
     }
 }

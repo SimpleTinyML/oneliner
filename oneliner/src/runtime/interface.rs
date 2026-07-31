@@ -113,10 +113,19 @@ impl<T, const D1: usize, const D2: usize, const D3: usize, const D4: usize>
 /// Typed tensor inference implemented directly by generated model instances.
 pub trait ModelInference {
     type InputTensor;
+
+    /// Backend-selected input passing form.
+    ///
+    /// IREE uses `&'input InputTensor`; MicroFlow uses `InputTensor` directly.
+    type InputRefOrVal<'input>;
     type OutputTensor;
 
     /// Runs inference and returns an owned output tensor.
-    fn run(&mut self, input: &Self::InputTensor) -> Self::OutputTensor;
+    ///
+    /// Backends select whether the input is borrowed or moved through
+    /// `InputRefOrVal`: IREE borrows its input tensor, while MicroFlow consumes
+    /// its native buffer.
+    fn run<'input>(&mut self, input: Self::InputRefOrVal<'input>) -> Self::OutputTensor;
 
     /// Creates a zero-filled input tensor with the model's element type and dimensions.
     fn create_input_tensor() -> Self::InputTensor;

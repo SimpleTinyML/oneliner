@@ -106,15 +106,22 @@ OneLiner generates the input and output tensor types directly from the model. Th
 
 ## Examples
 
-Each example is an independent Cargo project. Run its commands from the example directory with the Python environment activated.
+Each example is an independent Cargo project. Run its commands from the
+example directory. The IREE examples require the Python environment described
+above; the MicroFlow example does not.
 
 | Example | What it demonstrates | Active model |
 | --- | --- | --- |
 | [Desktop IREE](examples/std-iree/) | The shortest end-to-end validation path on a standard host | Quantized MCUNet visual wake word |
+| [Desktop MicroFlow](examples/std-microflow/) | Pure-Rust TFLite code generation with native MicroFlow buffers | Quantized DS-CNN-S keyword spotting |
 | [Ariel OS + IREE](examples/ariel-os-iree/) | `no_std`, Ariel OS threads, native-board validation, and inference timing | Quantized LeNet5 |
 | [Embassy + IREE on Pico](examples/embassy-pico-iree/) | Bare-metal RP2040, shared model workspace, static input storage, and `defmt` logging | Quantized LeNet5 |
 
 Start with the [desktop example](examples/std-iree/) to confirm the model toolchain, then move to the operating system or board example that matches your target.
+
+The [desktop MicroFlow example](examples/std-microflow/) does not require the
+Python/IREE toolchain. Enable it with `default-features = false` and the
+`microflow-runtime` feature.
 
 ## Supported Models
 
@@ -131,6 +138,12 @@ The generated `ModelInference` API currently targets fixed-shape models with:
 - up to four dimensions
 
 Integer and floating-point tensor element types are inferred automatically.
+
+The MicroFlow backend accepts quantized TFLite models supported by MicroFlow
+0.1.3. It exposes MicroFlow's native `Buffer2D` or `Buffer4D` through
+`ModelInference`; `run` consumes that input buffer directly. MicroFlow models
+must have one statically shaped `INT8` or `UINT8` input and output of rank 1,
+2, or 4.
 
 ## Memory Modes
 

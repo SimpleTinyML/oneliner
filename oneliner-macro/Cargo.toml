@@ -9,6 +9,7 @@ name = "oneliner_macro"
 proc-macro = true
 
 [dependencies]
+flatbuffers = "23.1"
 onnx-extractor = "0.4.2"
 proc-macro2 = "1"
 quote = "1"

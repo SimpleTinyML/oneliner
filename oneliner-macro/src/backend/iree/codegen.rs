@@ -187,6 +187,13 @@ pub(super) fn expand(
                 #input_d2,
                 #input_d3,
             >;
+            type InputRefOrVal<'input> = &'input ::OneLiner::runtime::Tensor<
+                #input_type,
+                #input_d0,
+                #input_d1,
+                #input_d2,
+                #input_d3,
+            >;
             type OutputTensor = ::OneLiner::runtime::Tensor<
                 #output_type,
                 #output_d0,
@@ -199,7 +206,10 @@ pub(super) fn expand(
                 Self::InputTensor::new(0 as #input_type)
             }
 
-            fn run(&mut self, input: &Self::InputTensor) -> Self::OutputTensor {
+            fn run<'input>(
+                &mut self,
+                input: Self::InputRefOrVal<'input>,
+            ) -> Self::OutputTensor {
                 let input_buffer = ::OneLiner::runtime::Buffer::new(
                     input.as_ptr().cast::<u8>(),
                     input.byte_len(),
