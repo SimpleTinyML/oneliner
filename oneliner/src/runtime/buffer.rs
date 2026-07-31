@@ -235,28 +235,27 @@ pub unsafe fn fill(target: AnyBufferRange, value: impl FillValue + Copy) -> Resu
 mod tests {
     use super::*;
 
-    fn range(capacity: usize, offset: usize, length: usize) -> BufferRange {
-        BufferRange {
-            buffer: Buffer {
-                ptr: core::ptr::dangling_mut(),
-                len: capacity,
-            },
-            access: Access::Rw,
-            offset,
-            length,
+    fn mutable_buffer(capacity: usize) -> AnyBuffer {
+        BufferMut {
+            ptr: core::ptr::dangling_mut(),
+            len: capacity,
         }
+        .into()
     }
 
     #[test]
     fn validates_buffer_ranges() {
-        assert_eq!(checked_len(range(16, 4, 8)), Ok(8));
-        assert_eq!(checked_len(range(16, 4, 0)), Ok(12));
+        let range = AnyBufferRange::try_new(mutable_buffer(16), Access::Rw, 4, 8).unwrap();
+        assert_eq!(range.offset, 4);
+        assert_eq!(range.length, 8);
+
+        assert!(AnyBufferRange::try_new(mutable_buffer(16), Access::Rw, 4, 0).is_ok());
         assert!(matches!(
-            checked_len(range(16, 17, 0)),
+            AnyBufferRange::try_new(mutable_buffer(16), Access::Rw, 17, 0),
             Err(Error::BufferRangeOutOfBounds { .. })
         ));
         assert!(matches!(
-            checked_len(range(16, 8, 9)),
+            AnyBufferRange::try_new(mutable_buffer(16), Access::Rw, 8, 9),
             Err(Error::BufferRangeOutOfBounds { .. })
         ));
     }

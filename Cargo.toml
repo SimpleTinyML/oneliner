@@ -2,6 +2,7 @@
 members = [
     "oneliner",
     "oneliner-macro",
+    "tests/std",
 ]
 exclude = [
     "examples",

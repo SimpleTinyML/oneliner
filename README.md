@@ -158,3 +158,16 @@ Use it when reducing duplicate RAM use matters more than concurrent inference. T
 OneLiner is currently at version `0.1.0`. The project focuses on making fixed-shape, single-input, single-output inference straightforward across desktop Rust and memory-constrained `no_std` targets.
 
 The examples are intentionally small and explicit. They are designed to help you validate the toolchain, understand the memory trade-offs, and replace the bundled model with your own.
+
+
+## Testing
+
+With the host model toolchain active, run the std end-to-end test suite from
+the repository root:
+
+```sh
+cargo test --manifest-path tests/std/Cargo.toml --release
+```
+
+This runs end-to-end inference for every model in `examples/models`, using both
+the `owned` and `shared` arena modes.
