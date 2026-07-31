@@ -192,11 +192,8 @@ fn parse_onnx_element_type(value: DataType) -> Option<ElementType> {
 }
 
 fn parse_model_signature(text: &str, path: &Path) -> syn::Result<ModelSignature> {
-    //TODO: temp fix
-    let main_offset = text
-        .find("func.func")
+    let after_main = find_main_signature(text)
         .ok_or_else(|| error(path, "model does not contain an @main entry function"))?;
-    let after_main = &text[main_offset + "func.func".len()..];
     let input_open = after_main
         .find('(')
         .ok_or_else(|| error(path, "@main does not contain an input argument list"))?;
@@ -227,6 +224,38 @@ fn parse_model_signature(text: &str, path: &Path) -> syn::Result<ModelSignature>
     let output = exactly_one_tensor(outputs, path, "output")?;
 
     Ok(ModelSignature { input, output })
+}
+
+fn find_main_signature(text: &str) -> Option<&str> {
+    for (main_offset, _) in text.match_indices("@main") {
+        let after_name = &text[main_offset + "@main".len()..];
+        if !after_name
+            .chars()
+            .next()
+            .is_some_and(|character| character == '(' || character.is_whitespace())
+        {
+            continue;
+        }
+
+        let before_main = &text[..main_offset];
+        let Some(function_offset) = ["func.func", "util.func"]
+            .into_iter()
+            .filter_map(|operation| {
+                before_main
+                    .rfind(operation)
+                    .map(|offset| (offset, operation.len()))
+            })
+            .max_by_key(|(offset, _)| *offset)
+        else {
+            continue;
+        };
+        let declaration_prefix = &text[function_offset.0 + function_offset.1..main_offset];
+        if !declaration_prefix.contains(['{', '}']) {
+            return Some(after_name);
+        }
+    }
+
+    None
 }
 
 fn exactly_one_tensor(
@@ -377,4 +406,44 @@ fn has_extension(path: &Path, expected: &str) -> bool {
     path.extension()
         .and_then(std::ffi::OsStr::to_str)
         .is_some_and(|extension| extension.eq_ignore_ascii_case(expected))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_util_main_signature_with_tensor_attributes() {
+        let text = r#"
+            module {
+              util.func public @main(
+                %arg0: tensor<1x64x64x3xi8> {ml_program.identifier = "input"}
+              ) -> (tensor<1x2xi8> {ml_program.identifier = "output"}) {
+                util.return %arg0 : tensor<1x2xi8>
+              }
+            }
+        "#;
+
+        let signature = parse_model_signature(text, Path::new("model.mlir")).unwrap();
+
+        assert!(matches!(signature.input.element_type, ElementType::I8));
+        assert_eq!(signature.input.shape, [1, 64, 64, 3]);
+        assert!(matches!(signature.output.element_type, ElementType::I8));
+        assert_eq!(signature.output.shape, [1, 1, 1, 2]);
+    }
+
+    #[test]
+    fn selects_main_instead_of_an_earlier_helper_function() {
+        let text = r#"
+            func.func private @helper(%arg0: tensor<4xi32>) -> tensor<4xi32>
+            func.func @main(%arg0: tensor<2xf32>) -> tensor<2xf32>
+        "#;
+
+        let signature = parse_model_signature(text, Path::new("model.mlir")).unwrap();
+
+        assert!(matches!(signature.input.element_type, ElementType::F32));
+        assert_eq!(signature.input.shape, [1, 1, 1, 2]);
+        assert!(matches!(signature.output.element_type, ElementType::F32));
+        assert_eq!(signature.output.shape, [1, 1, 1, 2]);
+    }
 }
