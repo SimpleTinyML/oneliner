@@ -2,7 +2,6 @@ mod arena;
 mod buffer;
 mod executor;
 mod interface;
-mod microflow;
 
 #[cfg(feature = "iree-runtime")]
 mod iree;
@@ -18,8 +17,6 @@ pub use interface::{
     Error, ModelArtifacts, ModelInference, ModelSource, Shape, Tensor, Tensor4D,
     TensorArray,
 };
-pub use microflow::MicroflowModel;
-
 #[cfg(feature = "iree-runtime")]
 pub use iree::{
     dispatch, dispatch_fn_from_library, iree_hal_executable_dispatch_state_v0_t,
@@ -34,4 +31,3 @@ pub type AlignedType = A64;
 
 
 pub use arena::{OwnedArena, SharedArena, ArenaStorage};
-

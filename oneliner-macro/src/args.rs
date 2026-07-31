@@ -3,15 +3,7 @@ use syn::{AttributeArgs, Lit, LitStr, Meta, NestedMeta};
 
 pub struct ModelArgs {
     pub model_path: LitStr,
-    pub backend: BackendArg,
     pub arena: ArenaArg,
-    pub arena_span: Option<proc_macro2::Span>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum BackendArg {
-    Iree,
-    Microflow,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -38,22 +30,21 @@ impl ModelArgs {
             }
         };
 
-        let mut backend = None;
+        let mut has_backend = false;
         let mut arena = None;
-        let mut arena_span = None;
         for arg in args {
             match arg {
                 NestedMeta::Meta(Meta::NameValue(meta)) if meta.path.is_ident("backend") => {
-                    if backend.is_some() {
+                    if has_backend {
                         return Err(syn::Error::new(meta.span(), "duplicate backend option"));
                     }
-                    backend = Some(parse_backend(meta.lit)?);
+                    parse_backend(meta.lit)?;
+                    has_backend = true;
                 }
                 NestedMeta::Meta(Meta::NameValue(meta)) if meta.path.is_ident("arena") => {
                     if arena.is_some() {
                         return Err(syn::Error::new(meta.span(), "duplicate arena option"));
                     }
-                    arena_span = Some(meta.span());
                     arena = Some(parse_arena(meta.lit)?);
                 }
                 other => {
@@ -67,9 +58,7 @@ impl ModelArgs {
 
         Ok(Self {
             model_path,
-            backend: backend.unwrap_or(BackendArg::Iree),
             arena: arena.unwrap_or(ArenaArg::Owned),
-            arena_span,
         })
     }
 }
@@ -77,24 +66,23 @@ impl ModelArgs {
 /// Parses a backend string literal into a known backend selector.
 ///
 /// Input: `backend = "..."` literal.
-/// Output: `BackendArg` or a `syn::Error` for unsupported names.
-fn parse_backend(lit: Lit) -> syn::Result<BackendArg> {
+/// Output: `Ok(())` for IREE or a `syn::Error` for unsupported names.
+fn parse_backend(lit: Lit) -> syn::Result<()> {
     let value = match lit {
         Lit::Str(value) => value,
         other => {
             return Err(syn::Error::new(
                 other.span(),
-                "backend must be a string literal, for example backend = \"microflow\"",
+                "backend must be a string literal, for example backend = \"iree\"",
             ));
         }
     };
 
     match value.value().trim().to_ascii_lowercase().as_str() {
-        "iree" => Ok(BackendArg::Iree),
-        "microflow" | "microflow-rs" | "microflow_rs" => Ok(BackendArg::Microflow),
+        "iree" => Ok(()),
         other => Err(syn::Error::new(
             value.span(),
-            format!("unknown backend '{other}', expected 'iree' or 'microflow'"),
+            format!("unknown backend '{other}', expected 'iree'"),
         )),
     }
 }
@@ -129,7 +117,7 @@ mod tests {
         let args: AttributeArgs = vec![
             syn::parse_quote!("model.tflite"),
             syn::parse_quote!(backend = "iree"),
-            syn::parse_quote!(backend = "microflow"),
+            syn::parse_quote!(backend = "iree"),
         ];
 
         assert!(ModelArgs::parse(args).is_err());
@@ -139,9 +127,6 @@ mod tests {
     fn defaults_to_iree() {
         let args: AttributeArgs = vec![syn::parse_quote!("model.tflite")];
 
-        assert!(matches!(
-            ModelArgs::parse(args).unwrap().backend,
-            BackendArg::Iree
-        ));
+        assert!(ModelArgs::parse(args).is_ok());
     }
 }
