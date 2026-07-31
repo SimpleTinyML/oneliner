@@ -96,10 +96,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ariel-os-buildutils"
-version = "0.5.0"
-
-[[package]]
 name = "ariel-os-debug"
 version = "0.5.0"
 dependencies = [
@@ -127,7 +123,6 @@ dependencies = [
  "embassy-futures",
  "embassy-hal-internal",
  "embassy-nrf",
- "embassy-rp",
  "embassy-stm32",
  "embassy-sync 0.7.2",
  "embassy-time",
@@ -173,7 +168,6 @@ dependencies = [
  "esp-rom-sys",
  "esp-sync",
  "paste",
- "portable-atomic",
  "static_cell",
 ]
 
@@ -265,7 +259,6 @@ dependencies = [
 name = "ariel-os-rp"
 version = "0.5.0"
 dependencies = [
- "ariel-os-buildutils",
  "ariel-os-embassy-common",
  "ariel-os-log",
  "ariel-os-utils",
@@ -273,7 +266,6 @@ dependencies = [
  "embassy-rp",
  "embedded-hal-async",
  "paste",
- "portable-atomic",
 ]
 
 [[package]]
@@ -281,7 +273,6 @@ name = "ariel-os-rt"
 version = "0.5.0"
 dependencies = [
  "ariel-os-alloc",
- "ariel-os-buildutils",
  "ariel-os-debug",
  "ariel-os-log",
  "ariel-os-threads",
