@@ -1,5 +1,3 @@
-mod abi;
-
 use core::ffi::c_void;
 
 #[cfg(feature = "ariel-os")]
@@ -7,11 +5,15 @@ use ariel_os::log;
 #[cfg(not(feature = "ariel-os"))]
 use log;
 
-use super::{DefaultExecutor, Error, Executor, BufferRange, WorkItem, AnyBufferRange, AnyBuffer, Access};
-use abi::{iree_hal_executable_library_v0_t, IREE_HAL_EXECUTABLE_LIBRARY_VERSION_LATEST};
+use super::{
+    Access, AnyBuffer, AnyBufferRange, BufferRange, DefaultExecutor, Error, Executor, WorkItem,
+};
+use oneliner_iree_abi::{
+    iree_hal_executable_library_v0_t, IREE_HAL_EXECUTABLE_LIBRARY_VERSION_LATEST,
+};
 use portable_atomic::{AtomicI32, Ordering};
 
-pub use abi::{
+pub use oneliner_iree_abi::{
     iree_hal_executable_dispatch_state_v0_t, iree_hal_executable_environment_v0_t,
     iree_hal_executable_import_thunk_v0_t, iree_hal_executable_import_v0_t,
     iree_hal_executable_library_header_t, iree_hal_executable_library_query_fn_t,
@@ -126,7 +128,7 @@ where
             }
             AnyBuffer::Mut(buffer) => {
                 binding_ptrs[index] = unsafe { buffer.ptr.add(range.offset) as *mut c_void };
-                binding_lengths[index] = range.length;   
+                binding_lengths[index] = range.length;
             }
         }
         log::trace!(

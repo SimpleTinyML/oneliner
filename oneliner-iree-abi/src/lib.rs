@@ -1,3 +1,4 @@
+#![no_std]
 #![allow(non_camel_case_types)]
 
 use core::ffi::c_void;
@@ -79,13 +80,13 @@ pub type iree_hal_executable_library_query_fn_t =
     ) -> *const *const iree_hal_executable_library_header_t;
 
 #[repr(C)]
-pub(super) struct iree_hal_executable_import_table_v0_t {
+pub struct iree_hal_executable_import_table_v0_t {
     pub count: u32,
     pub symbols: *const *const u8,
 }
 
 #[repr(C)]
-pub(super) struct iree_hal_executable_dispatch_attrs_v0_t {
+pub struct iree_hal_executable_dispatch_attrs_v0_t {
     pub flags: u64,
     pub local_memory_pages: u16,
     pub constant_count: u8,
@@ -98,7 +99,7 @@ pub(super) struct iree_hal_executable_dispatch_attrs_v0_t {
 }
 
 #[repr(C)]
-pub(super) struct iree_hal_executable_dispatch_parameter_v0_t {
+pub struct iree_hal_executable_dispatch_parameter_v0_t {
     pub parameter_type: u8,
     pub size: u8,
     pub flags: u16,
@@ -107,26 +108,26 @@ pub(super) struct iree_hal_executable_dispatch_parameter_v0_t {
 }
 
 #[repr(C)]
-pub(super) struct iree_hal_executable_dispatch_occupancy_v0_t {
+pub struct iree_hal_executable_dispatch_occupancy_v0_t {
     pub reserved: i32,
 }
 
 #[repr(C)]
-pub(super) struct iree_hal_executable_source_location_v0_t {
+pub struct iree_hal_executable_source_location_v0_t {
     pub line: u32,
     pub path_length: u32,
     pub path: *const u8,
 }
 
 #[repr(C)]
-pub(super) struct iree_hal_executable_stage_location_table_v0_t {
+pub struct iree_hal_executable_stage_location_table_v0_t {
     pub count: u32,
     pub names: *const *const u8,
     pub locations: *const iree_hal_executable_source_location_v0_t,
 }
 
 #[repr(C)]
-pub(super) struct iree_hal_executable_export_table_v0_t {
+pub struct iree_hal_executable_export_table_v0_t {
     pub count: u32,
     pub ptrs: *const DispatchFn,
     pub attrs: *const iree_hal_executable_dispatch_attrs_v0_t,
@@ -140,12 +141,12 @@ pub(super) struct iree_hal_executable_export_table_v0_t {
 }
 
 #[repr(C)]
-pub(super) struct iree_hal_executable_constant_table_v0_t {
+pub struct iree_hal_executable_constant_table_v0_t {
     pub count: u32,
 }
 
 #[repr(C)]
-pub(super) struct iree_hal_executable_source_file_v0_t {
+pub struct iree_hal_executable_source_file_v0_t {
     pub path_length: u32,
     pub path: *const u8,
     pub content_length: u32,
@@ -153,13 +154,13 @@ pub(super) struct iree_hal_executable_source_file_v0_t {
 }
 
 #[repr(C)]
-pub(super) struct iree_hal_executable_source_file_table_v0_t {
+pub struct iree_hal_executable_source_file_table_v0_t {
     pub count: u32,
     pub files: *const iree_hal_executable_source_file_v0_t,
 }
 
 #[repr(C)]
-pub(super) struct iree_hal_executable_library_v0_t {
+pub struct iree_hal_executable_library_v0_t {
     pub header: *const iree_hal_executable_library_header_t,
     pub imports: iree_hal_executable_import_table_v0_t,
     pub exports: iree_hal_executable_export_table_v0_t,

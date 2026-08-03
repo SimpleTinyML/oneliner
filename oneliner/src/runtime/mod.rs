@@ -10,9 +10,7 @@ pub use buffer::{
     concurrent, fill, Access,
     BufferRange, Buffer, BufferMut, BufferSource, AnyBufferRange, AnyBuffer
 };
-#[cfg(feature = "ariel-os")]
-pub use executor::ArielOsExecutor;
-pub use executor::{DefaultExecutor, Executor, SequentialExecutor, WorkItem};
+pub use executor::{DefaultExecutor, Executor, WorkItem};
 pub use interface::{
     Error, ModelArtifacts, ModelInference, ModelSource, Shape, Tensor, Tensor4D,
     TensorArray,

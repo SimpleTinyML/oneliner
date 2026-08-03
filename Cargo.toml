@@ -1,6 +1,9 @@
 [workspace]
 members = [
     "oneliner",
+    "oneliner-ariel-os-executor",
+    "oneliner-executor",
+    "oneliner-iree-abi",
     "oneliner-macro",
     "tests/std",
 ]

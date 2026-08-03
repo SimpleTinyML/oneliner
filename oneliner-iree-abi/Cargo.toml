@@ -1,0 +1,7 @@
+[package]
+name = "oneliner-iree-abi"
+version = "0.1.0"
+edition = "2021"
+description = "IREE executable library ABI types used by OneLiner"
+
+[dependencies]

@@ -1,0 +1,14 @@
+[package]
+name = "oneliner-ariel-os-executor"
+version = "0.1.0"
+edition = "2021"
+description = "Ariel OS executor for OneLiner workloads"
+
+[features]
+enabled = []
+
+[dependencies]
+ariel-os = { version = ">=0.1.0", default-features = false }
+heapless = { version = "0.9.3" }
+oneliner-executor = { path = "../oneliner-executor" }
+portable-atomic = { version = "1" }
