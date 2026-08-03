@@ -1,6 +1,7 @@
+use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{ItemStruct, Meta, NestedMeta};
+use syn::{ItemStruct, LitStr, Meta, NestedMeta};
 
 use super::super::common::{path_lit, rust_ident};
 use super::IreeArtifacts;
@@ -26,6 +27,7 @@ pub(super) fn expand(
     let output_size = artifacts.output.size;
     let execute_fns = &artifacts.execute_fns;
     let query_fn = &artifacts.query_fn;
+    let query_link_name = LitStr::new(&artifacts.query_link_name, Span::call_site());
     let input_type = artifacts.input_tensor.element_type.rust_tokens();
     let output_type = artifacts.output_tensor.element_type.rust_tokens();
     let [input_d0, input_d1, input_d2, input_d3] = artifacts.input_tensor.shape;
@@ -115,6 +117,12 @@ pub(super) fn expand(
 
     quote! {
 
+        // Besides making the source visible to generated code, include_bytes! tells
+        // Cargo/rustc to rebuild this expansion whenever the model artifact changes.
+        const _: () = {
+            let _ = include_bytes!(#model_path);
+        };
+
         #model_definition
 
         #[allow(improper_ctypes, non_camel_case_types, non_snake_case, non_upper_case_globals)]
@@ -146,6 +154,7 @@ pub(super) fn expand(
 
 
             unsafe extern "C" {
+                #[link_name = #query_link_name]
                 pub unsafe fn #query_fn(
                     max_version: u32,
                     environment: *const iree_hal_executable_environment_v0_t,

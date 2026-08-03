@@ -6,9 +6,9 @@ use proc_macro2::Span;
 use syn::Ident;
 use walkdir::WalkDir;
 
-use super::super::common::parse_ident;
+use super::super::common::{parse_ident, rust_ident};
 
-pub(super) fn parse_query_function(object_path: &Path) -> syn::Result<Ident> {
+pub(super) fn parse_query_function(object_path: &Path) -> syn::Result<(Ident, String)> {
     let header_path = object_path.with_extension("h");
     validate_file(&header_path, "IREE object header")?;
     let header = fs::read_to_string(&header_path).map_err(call_site_error)?;
@@ -26,7 +26,11 @@ pub(super) fn parse_query_function(object_path: &Path) -> syn::Result<Ident> {
                 ),
             )
         })?;
-    parse_ident(name, "IREE query function")
+    let rust_name = rust_ident(name);
+    Ok((
+        parse_ident(&rust_name, "IREE query function")?,
+        name.to_owned(),
+    ))
 }
 
 fn query_name_from_line(raw_line: &str) -> Option<&str> {
@@ -188,6 +192,18 @@ mod tests {
             Some("model_library_query")
         );
         assert_eq!(query_name_from_line("// model_library_query("), None);
+    }
+
+    #[test]
+    fn sanitizes_pytorch_query_function_names_for_rust() {
+        let raw = "main$async_dispatch_0_library_query";
+        let rust_name = rust_ident(raw);
+
+        assert_eq!(rust_name, "main_async_dispatch_0_library_query");
+        assert_eq!(
+            parse_ident(&rust_name, "test").unwrap().to_string(),
+            rust_name
+        );
     }
 
     #[test]

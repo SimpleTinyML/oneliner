@@ -17,5 +17,5 @@ static libraries expose model-level symbols, so this isolation prevents symbol
 collisions while still allowing one command to run the full matrix.
 
 `model_coverage.rs` scans the model directory. Adding a new `.mlir`, `.onnx`,
-or `.tflite` file without adding both arena tests makes the suite fail with a
-targeted error.
+`.pt2`, or `.tflite` file without adding both arena tests makes the suite fail
+with a targeted error.

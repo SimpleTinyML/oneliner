@@ -50,12 +50,22 @@ Python 3.10 or newer is required. A virtual environment keeps the compiler tools
 pip install "iree-base-compiler[onnx]" tosa-converter-for-tflite
 ```
 
+To compile PyTorch models, install the CPU build of PyTorch and IREE Turbine in
+the same environment. PyTorch, Turbine, and IREE must be mutually compatible,
+so pin a working combination together for reproducible builds:
+
+```sh
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install iree-turbine
+```
+
 Verify the installation:
 
 ```sh
 iree-compile --version
 tosa-converter-for-tflite --version
 iree-import-onnx --help
+python -c "import torch, iree.turbine.aot"
 ```
 
 The packages provide:
@@ -63,6 +73,8 @@ The packages provide:
 - `iree-base-compiler`: the IREE compiler used for every model
 - `iree-base-compiler[onnx]`: ONNX import support
 - `tosa-converter-for-tflite`: TFLite-to-TOSA import support
+- `torch`: exports and loads PyTorch `ExportedProgram` models
+- `iree-turbine`: imports PyTorch programs into IREE-compatible MLIR
 
 If you only use MLIR input, `iree-base-compiler` is sufficient.
 
@@ -95,6 +107,36 @@ let values = output.as_slice();
 
 Oneliner generates the input and output tensor types directly from the model. The application does not need to repeat their data types or dimensions.
 
+### PyTorch models
+
+OneLiner accepts a PyTorch `ExportedProgram` saved with the conventional `.pt2`
+extension. Export the inference model with fixed example input shapes:
+
+```python
+import torch
+
+model = MyModel()
+model.load_state_dict(torch.load("model.pth", weights_only=True))
+model.eval()
+
+example_input = torch.zeros((1, 3, 224, 224), dtype=torch.float32)
+exported = torch.export.export(model, (example_input,))
+torch.export.save(exported, "model.pt2")
+```
+
+Then bind it like any other model:
+
+```rust
+#[model("models/model.pt2")]
+struct MyModel;
+```
+
+`.pt` and `.pth` are checkpoint conventions rather than self-contained model
+formats: a checkpoint may contain only a `state_dict`, with no forward graph or
+input signature. Convert those checkpoints to `.pt2` before using them with
+OneLiner. Only load models from trusted sources because PyTorch deserialization
+uses pickle internally.
+
 ## Examples
 
 Each example is an independent Cargo project. Run its commands from the example directory with the Python environment activated.
@@ -113,6 +155,7 @@ The built-in IREE backend currently accepts:
 
 - TFLite
 - ONNX
+- PyTorch `ExportedProgram` (`.pt2`)
 - MLIR accepted by IREE
 
 The generated `ModelInference` API currently targets fixed-shape models with:

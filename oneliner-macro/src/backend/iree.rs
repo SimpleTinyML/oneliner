@@ -31,6 +31,7 @@ struct BindingArtifact {
 struct IreeArtifacts {
     paths: ArtifactPaths,
     query_fn: Ident,
+    query_link_name: String,
     execute_fns: Vec<Ident>,
     input: BindingArtifact,
     output: BindingArtifact,
