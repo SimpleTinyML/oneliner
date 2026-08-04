@@ -1,6 +1,3 @@
-#[cfg(feature = "alloc")]
-use super::Prediction;
-
 use super::{Access, Aligned, AlignedType};
 
 #[cfg(feature = "ndarray")]
