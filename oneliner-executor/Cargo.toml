@@ -1,9 +1,21 @@
 [package]
 name = "oneliner-executor"
 version = "0.1.0"
-edition = "2021"
-description = "Executor interfaces and default executor for OneLiner"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Executor interfaces and default executor for Oneliner"
+documentation = "https://docs.rs/oneliner-executor"
+
+[lints]
+workspace = true
 
 [dependencies]
-oneliner-iree-abi = { path = "../oneliner-iree-abi" }
-portable-atomic = { version = "1", default-features = false }
+oneliner-iree-abi.workspace = true
+portable-atomic.workspace = true

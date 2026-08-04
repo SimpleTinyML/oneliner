@@ -1,8 +1,9 @@
 use core::ffi::c_void;
 
-#[cfg(feature = "ariel-os")]
-use ariel_os::log;
-#[cfg(not(feature = "ariel-os"))]
+// TODO: logging switching.
+// #[cfg(feature = "ariel-os")]
+// use ariel_os::log;
+// #[cfg(not(feature = "ariel-os"))]
 use log;
 
 use super::{

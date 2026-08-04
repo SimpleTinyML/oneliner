@@ -82,14 +82,12 @@ impl<const N: usize> BufferSource for [u8; N] {
     }
 }
 
-
 #[derive(Clone, Copy)]
 pub struct BufferRange<T> {
     pub buffer: T,
     pub access: Access,
     pub offset: usize,
     pub length: usize,
-
 }
 
 #[derive(Clone, Copy)]
@@ -119,13 +117,11 @@ impl From<BufferMut> for AnyBuffer {
     }
 }
 
-
 pub type AnyBufferRange = BufferRange<AnyBuffer>;
 
 impl AnyBufferRange {
     pub fn new(buffer: AnyBuffer, access: Access, offset: usize, length: usize) -> Self {
-        Self::try_new(buffer, access, offset, length)
-            .expect("invalid buffer range")
+        Self::try_new(buffer, access, offset, length).expect("invalid buffer range")
     }
 
     pub fn try_new(
@@ -138,10 +134,18 @@ impl AnyBufferRange {
 
         let end = offset
             .checked_add(length)
-            .ok_or(Error::BufferRangeOutOfBounds { offset, length, capacity: buffer_len })?;
+            .ok_or(Error::BufferRangeOutOfBounds {
+                offset,
+                length,
+                capacity: buffer_len,
+            })?;
 
         if end > buffer_len {
-            return Err(Error::BufferRangeOutOfBounds { offset, length, capacity: buffer_len });
+            return Err(Error::BufferRangeOutOfBounds {
+                offset,
+                length,
+                capacity: buffer_len,
+            });
         }
 
         let access_valid = matches!(
@@ -153,10 +157,13 @@ impl AnyBufferRange {
         );
 
         if !access_valid {
-            return Err(Error::InvalidAccess { access, required: match buffer {
-                AnyBuffer::Ref(_) => Access::Ro,
-                AnyBuffer::Mut(_) => Access::Rw,
-            }});
+            return Err(Error::InvalidAccess {
+                access,
+                required: match buffer {
+                    AnyBuffer::Ref(_) => Access::Ro,
+                    AnyBuffer::Mut(_) => Access::Rw,
+                },
+            });
         }
 
         Ok(Self {
@@ -166,7 +173,6 @@ impl AnyBufferRange {
             length,
         })
     }
-
 }
 
 /// Runs a group of generated commands sequentially.
@@ -220,16 +226,13 @@ pub unsafe fn fill(target: AnyBufferRange, value: impl FillValue + Copy) -> Resu
                 required: Access::Rw,
             });
         }
-        AnyBuffer::Mut(buffer) => {
-            unsafe {
-                core::ptr::write_bytes(buffer.ptr.add(target.offset), value.to_u8(), target.length);
-            }
-        }
+        AnyBuffer::Mut(buffer) => unsafe {
+            core::ptr::write_bytes(buffer.ptr.add(target.offset), value.to_u8(), target.length);
+        },
     }
-    
+
     Ok(())
 }
-
 
 #[cfg(test)]
 mod tests {

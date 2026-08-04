@@ -1,6 +1,6 @@
-# OneLiner + IREE on Ariel OS
+# Oneliner + IREE on Ariel OS
 
-This example runs a OneLiner model inside a `no_std` Ariel OS thread. It demonstrates that the same one-line model binding used on desktop can produce target-native inference code for an operating-system-based embedded application.
+This example runs a Oneliner model inside a `no_std` Ariel OS thread. It demonstrates that the same one-line model binding used on desktop can produce target-native inference code for an operating-system-based embedded application.
 
 ```rust
 #[model("../models/lenet5_quantized.tflite", backend = "iree")]
@@ -23,7 +23,7 @@ The example currently uses `../models/lenet5_quantized.tflite`:
 - input: `Tensor<f32, 1, 28, 28, 1>`
 - output: `Tensor<f32, 1, 1, 1, 10>`
 - input data: every element is filled with `7.0`
-- memory mode: `owned`, the OneLiner default
+- memory mode: `owned`, the Oneliner default
 
 `EXPECTED` is currently a ten-element zero-filled placeholder. Replace it with reference output from your own validation data before using the comparison as a model-correctness test.
 
@@ -81,11 +81,11 @@ The active example uses the default per-instance workspace. To let every `Model`
 struct Model;
 ```
 
-The `ariel-os` feature is already enabled for OneLiner in this example.
+The `ariel-os` feature is already enabled for Oneliner in this example.
 
 ## Building for Hardware
 
-Select a board supported by the configured Ariel OS release instead of `native`. OneLiner derives the IREE target from the Rust target chosen by Ariel OS.
+Select a board supported by the configured Ariel OS release instead of `native`. Oneliner derives the IREE target from the Rust target chosen by Ariel OS.
 
 ## Switching Models
 

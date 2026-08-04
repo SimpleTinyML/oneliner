@@ -35,7 +35,7 @@ pub(super) fn expand(
         ArenaArg::Owned => quote! {
             #(#struct_attrs)*
             #struct_vis struct #struct_ident {
-                __arena: ::OneLiner::runtime::OwnedArena<#module_ident::Workspace>,
+                __arena: ::oneliner::runtime::OwnedArena<#module_ident::Workspace>,
             }
         },
         ArenaArg::Shared => quote! {
@@ -46,12 +46,12 @@ pub(super) fn expand(
     let shared_arena_static = match arena {
         ArenaArg::Owned => quote! {},
         ArenaArg::Shared => quote! {
-            pub(super) static ARENA_VAL: 
-                ::OneLiner::runtime::ArenaStorage<Workspace> = 
-                ::OneLiner::runtime::ArenaStorage::new(Workspace::new());
+            pub(super) static ARENA_VAL:
+                ::oneliner::runtime::ArenaStorage<Workspace> =
+                ::oneliner::runtime::ArenaStorage::new(Workspace::new());
             pub(super) static ARENA:
-                ::OneLiner::runtime::SharedArena<Workspace> =
-                ::OneLiner::runtime::SharedArena::new(&ARENA_VAL);
+                ::oneliner::runtime::SharedArena<Workspace> =
+                ::oneliner::runtime::SharedArena::new(&ARENA_VAL);
         },
     };
 
@@ -61,7 +61,7 @@ pub(super) fn expand(
                 /// Creates a model with an arena owned exclusively by this instance.
                 pub fn new() -> Self {
                     Self {
-                        __arena: ::OneLiner::runtime::OwnedArena::new(
+                        __arena: ::oneliner::runtime::OwnedArena::new(
                             #module_ident::Workspace::new(),
                         ),
                     }
@@ -97,7 +97,7 @@ pub(super) fn expand(
                 input_buffer,
                 output_buffer,
             )
-                .expect("OneLiner inference dispatch failed");
+                .expect("Oneliner inference dispatch failed");
         )*
     };
 
@@ -137,13 +137,13 @@ pub(super) fn expand(
 
         mod #module_ident {
 
-            use ::OneLiner::runtime::{
+            use ::oneliner::runtime::{
                 concurrent, dispatch_fn_from_library, fill, try_dispatch, Access, Aligned,
                 AlignedType, AnyBufferRange, Buffer, BufferMut, BufferSource, Error,
                 iree_hal_executable_environment_v0_t, iree_hal_executable_library_header_t,
                 iree_hal_executable_library_query_fn_t,
             };
-            
+
 
             unsafe extern "C" {
                 pub unsafe fn #query_fn(
@@ -162,9 +162,9 @@ pub(super) fn expand(
         #model_constructor
         #default_impl
 
-        impl ::OneLiner::runtime::ModelSource for #struct_ident {
+        impl ::oneliner::runtime::ModelSource for #struct_ident {
             const MODEL_PATH: &'static str = #model_path;
-            const ARTIFACTS: ::OneLiner::runtime::ModelArtifacts = ::OneLiner::runtime::ModelArtifacts {
+            const ARTIFACTS: ::oneliner::runtime::ModelArtifacts = ::oneliner::runtime::ModelArtifacts {
                 backend: "iree",
                 expansion: "static-flow",
                 model_path: #model_path,
@@ -179,15 +179,15 @@ pub(super) fn expand(
             };
         }
 
-        impl ::OneLiner::runtime::ModelInference for #struct_ident {
-            type InputTensor = ::OneLiner::runtime::Tensor<
+        impl ::oneliner::runtime::ModelInference for #struct_ident {
+            type InputTensor = ::oneliner::runtime::Tensor<
                 #input_type,
                 #input_d0,
                 #input_d1,
                 #input_d2,
                 #input_d3,
             >;
-            type OutputTensor = ::OneLiner::runtime::Tensor<
+            type OutputTensor = ::oneliner::runtime::Tensor<
                 #output_type,
                 #output_d0,
                 #output_d1,
@@ -200,13 +200,13 @@ pub(super) fn expand(
             }
 
             fn run(&mut self, input: &Self::InputTensor) -> Self::OutputTensor {
-                let input_buffer = ::OneLiner::runtime::Buffer::new(
+                let input_buffer = ::oneliner::runtime::Buffer::new(
                     input.as_ptr().cast::<u8>(),
                     input.byte_len(),
                 );
 
                 let mut output = Self::OutputTensor::new(0 as #output_type);
-                let output_buffer = ::OneLiner::runtime::BufferMut::new(
+                let output_buffer = ::oneliner::runtime::BufferMut::new(
                     output.as_mut_ptr().cast::<u8>(),
                     output.byte_len(),
                 );

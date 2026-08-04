@@ -4,7 +4,7 @@ use alloc::boxed::Box;
 use core::cell::UnsafeCell;
 use core::mem::MaybeUninit;
 
-/// Instance-owned model arena storage selected by the OneLiner `alloc` feature.
+/// Instance-owned model arena storage selected by the Oneliner `alloc` feature.
 pub struct OwnedArena<T> {
     #[cfg(not(feature = "alloc"))]
     inner: T,
@@ -77,7 +77,6 @@ impl<T: 'static> SharedArena<T> {
     }
 }
 
-/// Pure `no_std` fallback for targets without an OS-provided blocking mutex.
 #[cfg(not(feature = "ariel-os"))]
 pub struct SharedArena<T: 'static> {
     storage: &'static ArenaStorage<T>,
@@ -97,12 +96,9 @@ impl<T: 'static> SharedArena<T> {
         critical_section::with(|cs| {
             // Keep this guard alive for the entire closure.
             // It detects recursive access to the same arena.
-            let _borrow =
-                self._dummy_mutex.borrow_ref_mut(cs);
+            let _borrow = self._dummy_mutex.borrow_ref_mut(cs);
 
-            let arena: &mut T = unsafe {
-                &mut *self.storage.val.get()
-            };
+            let arena: &mut T = unsafe { &mut *self.storage.val.get() };
 
             f(arena)
         })

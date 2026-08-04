@@ -5,7 +5,12 @@ import unittest
 from pathlib import Path
 
 
-SCRIPT = Path(__file__).parents[1] / "iree_stream_flow_to_rust_using_re.py"
+SCRIPT = (
+    Path(__file__).parents[1]
+    / "oneliner-macro"
+    / "python"
+    / "iree_stream_flow_to_rust_using_re.py"
+)
 SPEC = importlib.util.spec_from_file_location("oneliner_flow_converter", SCRIPT)
 CONVERTER = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = CONVERTER
@@ -74,7 +79,7 @@ class FlowConverterTests(unittest.TestCase):
 
         rendered = CONVERTER.render_rust([execute], {})
 
-        self.assertIn("-> ::OneLiner::runtime::Result<()>", rendered)
+        self.assertIn("-> Result<(), Error>", rendered)
         self.assertIn("pub struct Workspace", rendered)
         self.assertIn("workspace: &mut Workspace", rendered)
         self.assertIn("tensor_ref!(workspace.TEMP_ARG0)", rendered)

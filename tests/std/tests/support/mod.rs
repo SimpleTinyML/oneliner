@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use OneLiner::runtime::{ModelArtifacts, ModelSource};
+use oneliner::runtime::{ModelArtifacts, ModelSource};
 
 pub fn assert_artifacts<M: ModelSource>(model_name: &str) {
     let ModelArtifacts {

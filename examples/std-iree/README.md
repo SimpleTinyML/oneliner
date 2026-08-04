@@ -1,6 +1,6 @@
-# OneLiner + IREE on Desktop
+# Oneliner + IREE on Desktop
 
-This is the recommended first OneLiner example. It validates the complete model-to-Rust path on a standard host with the smallest amount of setup.
+This is the recommended first Oneliner example. It validates the complete model-to-Rust path on a standard host with the smallest amount of setup.
 
 ```rust
 #[model("../models/mcunet-10fps_vww.tflite", backend = "iree")]
@@ -23,7 +23,7 @@ The example uses the quantized MCUNet visual wake-word model at `../models/mcune
 - output: `Tensor<i8, 1, 1, 1, 2>`
 - input data: every element is filled with `7`
 - expected output: `[4, -5]`
-- memory mode: `owned`, the OneLiner default
+- memory mode: `owned`, the Oneliner default
 
 ## Prerequisites
 
@@ -39,7 +39,7 @@ From this directory:
 cargo run --release
 ```
 
-The first build can take longer because OneLiner imports the TFLite model and compiles native model code before Rust links the application.
+The first build can take longer because Oneliner imports the TFLite model and compiles native model code before Rust links the application.
 
 ## Expected Behavior
 
@@ -60,6 +60,6 @@ Change the model path in `src/main.rs`:
 struct Model;
 ```
 
-OneLiner also accepts ONNX and IREE-compatible MLIR. When changing models, update the input preparation and reference output to match the new model.
+Oneliner also accepts ONNX and IREE-compatible MLIR. When changing models, update the input preparation and reference output to match the new model.
 
 Once a model works here, move the same binding to the [Ariel OS](../ariel-os-iree/) or [Embassy Pico](../embassy-pico-iree/) example.

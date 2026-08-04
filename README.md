@@ -1,19 +1,19 @@
-# OneLiner
+# Oneliner
 
-> **Model inference with one-line code.**
+> **TinyML model inference with one-line code. Support `no_std` embedded targets.**
 
-OneLiner turns a model file into a callable Rust type with one attribute:
+Oneliner turns a model file into a callable Rust type with one attribute:
 
 ```rust
 #[model("models/model.tflite")]
 struct MyModel;
 ```
 
-At build time, OneLiner imports the model, compiles it for the selected Rust target, generates the Rust binding, and links the native model code. At runtime, your application works with ordinary, strongly typed Rust tensors.
+At build time, Oneliner imports the model, compiles it for the selected Rust target, generates the Rust binding, and links the native model code. At runtime, your application works with ordinary, strongly typed Rust tensors.
 
 ```rust
-use OneLiner::model;
-use OneLiner::runtime::ModelInference;
+use oneliner::model;
+use oneliner::runtime::ModelInference;
 
 #[model("models/model.tflite")]
 struct MyModel;
@@ -28,13 +28,12 @@ fn main() {
 }
 ```
 
-## Why OneLiner?
+## Why Oneliner?
 
 - **One-line model binding:** Replace conversion scripts, native linking setup, tensor declarations, and dispatch glue with `#[model(...)]`.
 - **Typed inputs and outputs:** Tensor element types and shapes come from the model, so mismatches surface during the build instead of on the device.
-- **Made for local inference:** The model is compiled into target-native code. Inference does not depend on a cloud service.
+- **Made for on-device inference:** The model is compiled into target-native code. Inference does not depend on a cloud service.
 - **Embedded-ready:** The runtime supports `no_std` and is demonstrated with Ariel OS and Embassy on RP2040.
-- **No Python on the target:** Python and IREE are host-side build tools only.
 - **Memory-aware by design:** Choose independent per-instance workspaces or one synchronized shared workspace.
 
 ## Quick Start
@@ -63,33 +62,21 @@ The packages provide:
 
 If you only use MLIR input, `iree-base-compiler` is sufficient.
 
-### 2. Add OneLiner
+### 2. Add Oneliner
 
-Add the local crate to your application's `Cargo.toml`:
-
-```toml
-[dependencies]
-OneLiner = { path = "path/to/oneliner/oneliner" }
-```
-
-For an embedded `no_std` application:
+Add the crate to your application's `Cargo.toml`:
 
 ```toml
 [dependencies]
-OneLiner = {
-    path = "path/to/oneliner/oneliner",
-    default-features = false,
-    features = ["iree-runtime"]
-}
+oneliner = "0.1.0"
 ```
-
 ### 3. Bind and run a model
 
 Model paths are resolved relative to the application's `Cargo.toml`.
 
 ```rust
-use OneLiner::model;
-use OneLiner::runtime::ModelInference;
+use oneliner::model;
+use oneliner::runtime::ModelInference;
 
 #[model("models/model.tflite")]
 struct MyModel;
@@ -102,7 +89,7 @@ let output = model.run(&input);
 let values = output.as_slice();
 ```
 
-OneLiner generates the input and output tensor types directly from the model. The application does not need to repeat their data types or dimensions.
+Oneliner generates the input and output tensor types directly from the model. The application does not need to repeat their data types or dimensions.
 
 ## Examples
 
@@ -155,10 +142,9 @@ Use it when reducing duplicate RAM use matters more than concurrent inference. T
 
 ## Project Status
 
-OneLiner is currently at version `0.1.0`. The project focuses on making fixed-shape, single-input, single-output inference straightforward across desktop Rust and memory-constrained `no_std` targets.
+Oneliner is currently at version `0.1.0`. The project focuses on making fixed-shape, single-input, single-output inference straightforward across desktop Rust and memory-constrained `no_std` targets.
 
 The examples are intentionally small and explicit. They are designed to help you validate the toolchain, understand the memory trade-offs, and replace the bundled model with your own.
-
 
 ## Testing
 
@@ -166,7 +152,7 @@ With the host model toolchain active, run the std end-to-end test suite from
 the repository root:
 
 ```sh
-cargo test --manifest-path tests/std/Cargo.toml --release
+cargo test
 ```
 
 This runs end-to-end inference for every model in `examples/models`, using both

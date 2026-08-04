@@ -1,6 +1,6 @@
-# OneLiner + IREE on Raspberry Pi Pico
+# Oneliner + IREE on Raspberry Pi Pico
 
-This example runs a OneLiner model on an RP2040 with Embassy. It demonstrates bare-metal, `no_std` model inference with a shared static workspace and no Python or model interpreter on the device.
+This example runs a Oneliner model on an RP2040 with Embassy. It demonstrates bare-metal, `no_std` model inference with a shared static workspace and no Python or model interpreter on the device.
 
 ```rust
 #[model(

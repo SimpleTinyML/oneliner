@@ -2,8 +2,9 @@
 name = "std-iree"
 version = "0.1.0"
 edition = "2024"
+publish = false
 
 [dependencies]
-OneLiner = { path = "../../oneliner", default-features = false, features = ["iree-runtime",] }
+oneliner = { path = "../../oneliner", default-features = false, features = ["iree-runtime",] }
 log = { version = "0.4"}
 env_logger = "0.11"

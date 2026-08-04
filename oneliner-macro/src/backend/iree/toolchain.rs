@@ -46,10 +46,7 @@ fn target_from_process_args() -> Option<OsString> {
 fn query_rustc_host() -> Option<String> {
     let compiler = env::current_exe().ok()?;
 
-    let output = Command::new(compiler)
-        .arg("-vV")
-        .output()
-        .ok()?;
+    let output = Command::new(compiler).arg("-vV").output().ok()?;
 
     if !output.status.success() {
         return None;
@@ -75,16 +72,15 @@ pub(super) fn run_iree_compile(
     //TODO: hacky, shall be improved.
     let rust_target = match required_env(&["CARGO_BUILD_TARGET", "TARGET"], "Rust target triple") {
         Ok(t) => t,
-        Err(_) => {
-            target_from_process_args().unwrap_or(query_rustc_host().unwrap().into())
-            .into_string().map_err(|_| {
-                    syn::Error::new(
-                        proc_macro2::Span::call_site(),
-                        "target argument is not valid UTF-8",
-                    )
-                })?
-        }
-        
+        Err(_) => target_from_process_args()
+            .unwrap_or(query_rustc_host().unwrap().into())
+            .into_string()
+            .map_err(|_| {
+                syn::Error::new(
+                    proc_macro2::Span::call_site(),
+                    "target argument is not valid UTF-8",
+                )
+            })?,
     };
     let target_info = llvm_target_info_from_rust_triple(&rust_target).map_err(|error| {
         syn::Error::new(
@@ -163,7 +159,7 @@ fn converter_path() -> PathBuf {
         return PathBuf::from(path);
     }
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
+        .join("python")
         .join("iree_stream_flow_to_rust_using_re.py")
 }
 

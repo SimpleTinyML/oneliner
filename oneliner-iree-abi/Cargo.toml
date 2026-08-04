@@ -1,7 +1,19 @@
 [package]
 name = "oneliner-iree-abi"
 version = "0.1.0"
-edition = "2021"
-description = "IREE executable library ABI types used by OneLiner"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "IREE executable library ABI bindingsby Oneliner"
+documentation = "https://docs.rs/oneliner-iree-abi"
+
+[lints]
+workspace = true
 
 [dependencies]

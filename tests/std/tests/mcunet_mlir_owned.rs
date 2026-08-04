@@ -1,7 +1,7 @@
 mod support;
 
-use OneLiner::model;
-use OneLiner::runtime::ModelInference;
+use oneliner::model;
+use oneliner::runtime::ModelInference;
 
 #[model(
     "../../examples/models/mcunet_10fps_vww.mlir",

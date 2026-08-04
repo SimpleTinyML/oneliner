@@ -1,21 +1,32 @@
 [package]
-name = "OneLiner"
+name = "oneliner"
 version = "0.1.0"
-edition = "2021"
-description = "One-line Rust model binding macro with pluggable backends"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Oneline Rust model inference library with pluggable execution backends"
+documentation = "https://docs.rs/oneliner"
 
-[lib]
-name = "OneLiner"
+[lints]
+workspace = true
 
 [features]
+
 default = ["iree-runtime"]
-std = ["oneliner-runtime/std"]
-alloc = ["oneliner-runtime/alloc"]
+alloc = ["oneliner-runtime/alloc"] # Enable heap-allocation for "owned" model workspace.
 iree-runtime = ["oneliner-runtime/iree-runtime"]
-ariel-os = ["oneliner-runtime/ariel-os"]
+
+ariel-os = ["oneliner-runtime/ariel-os"] # Enable Ariel OS's threading support and multicore executor.
+
 ndarray = ["oneliner-runtime/ndarray"]
 
 
 [dependencies]
-oneliner-macro = { path = "../oneliner-macro" }
-oneliner-runtime = { path = "../oneliner-runtime", default-features = false }
+oneliner-macro.workspace = true
+oneliner-runtime.workspace = true

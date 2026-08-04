@@ -1,24 +1,35 @@
 [package]
 name = "oneliner-runtime"
 version = "0.1.0"
-edition = "2021"
-description = "Runtime support for OneLiner model bindings"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Runtime support for Oneliner model inference"
+documentation = "https://docs.rs/oneliner-runtime"
+
+[lints]
+workspace = true
 
 [features]
 default = ["iree-runtime"]
-std = []
 alloc = []
 iree-runtime = []
 ariel-os = ["dep:ariel-os", "dep:oneliner-ariel-os-executor"]
 ndarray = ["dep:ndarray"]
 
 [dependencies]
-aligned = { version = "0.4.3" }
-ariel-os = { version = ">=0.1.0", optional = true, default-features = false }
-critical-section = "1.2.0"
-log = { version = "0.4.26" }
-ndarray = { version = "0.17.2", optional = true, default-features = false }
-oneliner-ariel-os-executor = { path = "../oneliner-ariel-os-executor", optional = true, features = ["enabled"] }
-oneliner-executor = { path = "../oneliner-executor" }
-oneliner-iree-abi = { path = "../oneliner-iree-abi" }
-portable-atomic = { version = "1", default-features = false }
+aligned.workspace = true
+ariel-os = { workspace = true, optional = true }
+critical-section.workspace = true
+log.workspace = true
+ndarray = { workspace = true, optional = true }
+oneliner-ariel-os-executor = { workspace = true, optional = true, features = ["enabled"] }
+oneliner-executor.workspace = true
+oneliner-iree-abi.workspace = true
+portable-atomic.workspace = true

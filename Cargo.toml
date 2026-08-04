@@ -1,4 +1,7 @@
 [workspace]
+
+resolver = "3"
+
 members = [
     "oneliner",
     "oneliner-ariel-os-executor",
@@ -8,7 +11,46 @@ members = [
     "oneliner-runtime",
     "tests/std",
 ]
+
 exclude = [
     "examples",
 ]
-resolver = "2"
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.95"
+authors = ["Zhaolan Huang"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/zhaolanhuang/oneliner"
+homepage = "https://github.com/zhaolanhuang/oneliner"
+keywords = ["machine-learning", "inference", "embedded", "no-std", "iree"]
+categories = ["science", "embedded", "no-std"]
+
+[workspace.dependencies]
+aligned = "0.4.3"
+ariel-os = { version = ">=0.1.0", default-features = false }
+critical-section = "1.2.0"
+heapless = "0.9.3"
+log = "0.4.26"
+ndarray = { version = "0.17.2", default-features = false }
+onnx-extractor = "0.4.2"
+portable-atomic = { version = "1", default-features = false }
+proc-macro2 = "1"
+quote = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+syn = { version = "1", features = ["full"] }
+walkdir = "2"
+
+# Internal crates use an exact synchronized version for registry releases while
+# retaining paths for workspace development.
+oneliner-ariel-os-executor = { path = "oneliner-ariel-os-executor", version = "0.1.0", default-features = false }
+oneliner-executor = { path = "oneliner-executor", version = "0.1.0", default-features = false }
+oneliner-iree-abi = { path = "oneliner-iree-abi", version = "0.1.0", default-features = false }
+oneliner-macro = { path = "oneliner-macro", version = "0.1.0" }
+oneliner-runtime = { path = "oneliner-runtime", version = "0.1.0", default-features = false }
+
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
+invalid_html_tags = "deny"

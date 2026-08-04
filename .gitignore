@@ -1,7 +1,4 @@
 /target/
 **/target/
-Cargo.lock
-!examples/ariel-os-iree/Cargo.lock
 **/build/
 __pycache__
-

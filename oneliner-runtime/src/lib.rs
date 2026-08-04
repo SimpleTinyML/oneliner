@@ -1,4 +1,4 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
@@ -11,12 +11,11 @@ mod interface;
 #[cfg(feature = "iree-runtime")]
 mod iree;
 
-#[cfg(feature = "ariel-os")]
-pub use executor::ArielOsExecutor;
 pub use buffer::{
     concurrent, fill, Access, AnyBuffer, AnyBufferRange, Buffer, BufferMut, BufferRange,
     BufferSource,
 };
+
 pub use executor::{DefaultExecutor, Executor, SequentialExecutor, WorkItem};
 pub use interface::{
     Error, ModelArtifacts, ModelInference, ModelSource, Shape, Tensor, Tensor4D, TensorArray,

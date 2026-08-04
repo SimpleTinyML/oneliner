@@ -1,7 +1,7 @@
 use log::{error, info};
 
-use OneLiner::model;
-use OneLiner::runtime::{ModelInference, ModelSource};
+use oneliner::model;
+use oneliner::runtime::{ModelInference, ModelSource};
 
 #[model(
     "../models/mcunet-10fps_vww.tflite",

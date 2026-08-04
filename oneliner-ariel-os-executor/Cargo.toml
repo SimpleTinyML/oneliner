@@ -1,14 +1,26 @@
 [package]
 name = "oneliner-ariel-os-executor"
 version = "0.1.0"
-edition = "2021"
-description = "Ariel OS executor for OneLiner workloads"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Ariel OS Multi-core executor for Oneliner"
+documentation = "https://docs.rs/oneliner-ariel-os-executor"
+
+[lints]
+workspace = true
 
 [features]
-enabled = []
+enabled = [] # Dummy feature to enable the executor implementation for Ariel OS and avoid cargo test failed. Must be enabled when using this crate.
 
 [dependencies]
-ariel-os = { version = ">=0.1.0", default-features = false }
-heapless = { version = "0.9.3" }
-oneliner-executor = { path = "../oneliner-executor" }
-portable-atomic = { version = "1" }
+ariel-os.workspace = true
+heapless.workspace = true
+oneliner-executor.workspace = true
+portable-atomic.workspace = true

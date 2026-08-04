@@ -127,11 +127,7 @@ fn exactly_one_onnx_tensor(
     parse_onnx_tensor(tensor, path, label)
 }
 
-fn parse_onnx_tensor(
-    tensor: &Tensor,
-    path: &Path,
-    label: &str,
-) -> syn::Result<TensorArtifact> {
+fn parse_onnx_tensor(tensor: &Tensor, path: &Path, label: &str) -> syn::Result<TensorArtifact> {
     let element_type = parse_onnx_element_type(tensor.data_type()).ok_or_else(|| {
         error(
             path,

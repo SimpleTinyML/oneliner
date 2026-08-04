@@ -6,8 +6,8 @@ use embassy_time::{Duration, Timer};
 use {defmt_rtt as _, panic_probe as _};
 use defmt::{info, error};
 
-use OneLiner::model;
-use OneLiner::runtime::{ModelInference, ModelSource};
+use oneliner::model;
+use oneliner::runtime::{ModelInference, ModelSource};
 use static_cell::ConstStaticCell;
 
 #[model("../models/lenet5_quantized.tflite", backend = "iree", arena = "shared")]

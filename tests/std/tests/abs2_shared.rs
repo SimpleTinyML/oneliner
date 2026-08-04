@@ -1,7 +1,7 @@
 mod support;
 
-use OneLiner::model;
-use OneLiner::runtime::ModelInference;
+use oneliner::model;
+use oneliner::runtime::ModelInference;
 
 #[model("../../examples/models/abs2.mlir", backend = "iree", arena = "shared")]
 struct Abs2Shared;

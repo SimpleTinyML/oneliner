@@ -1,7 +1,7 @@
 # Standard-host end-to-end tests
 
 This standalone Cargo test package compiles every model in
-`examples/models` through the complete OneLiner/IREE pipeline and executes an
+`examples/models` through the complete Oneliner/IREE pipeline and executes an
 inference on the host. Every model is tested once with an instance-owned arena
 and once with the synchronized shared arena.
 

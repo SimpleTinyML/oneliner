@@ -27,10 +27,10 @@ impl<T, const D1: usize, const D2: usize, const D3: usize, const D4: usize>
 
     pub const fn new(value: T) -> Self
     where
-        T: Copy, 
+        T: Copy,
     {
         Self {
-            storage: Aligned([[[[value; D4]; D3]; D2]; D1])
+            storage: Aligned([[[[value; D4]; D3]; D2]; D1]),
         }
     }
 
@@ -77,13 +77,13 @@ impl<T, const D1: usize, const D2: usize, const D3: usize, const D4: usize>
     pub const fn dim(&self) -> Shape {
         Self::SHAPE
     }
-    
+
     #[cfg(feature = "ndarray")]
     pub fn view(&self) -> ArrayView4<'_, T> {
         ArrayView4::from_shape(Self::SHAPE, self.as_slice())
             .expect("Tensor4D shape must match its storage")
     }
-    
+
     #[cfg(feature = "ndarray")]
     pub fn view_mut(&mut self) -> ArrayViewMut4<'_, T> {
         ArrayViewMut4::from_shape(Self::SHAPE, self.as_slice_mut())
@@ -97,7 +97,7 @@ impl<T, const D1: usize, const D2: usize, const D3: usize, const D4: usize>
     {
         self.view_mut().fill(value);
     }
-    
+
     #[cfg(not(feature = "ndarray"))]
     pub fn fill(&mut self, value: T)
     where
@@ -202,9 +202,6 @@ impl core::fmt::Display for Error {
         }
     }
 }
-
-#[cfg(feature = "std")]
-impl std::error::Error for Error {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ModelArtifacts {

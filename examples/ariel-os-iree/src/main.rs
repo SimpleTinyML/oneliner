@@ -5,8 +5,8 @@ use ariel_os::debug::{exit, ExitCode};
 use ariel_os::log::{error, info};
 use ariel_os::time;
 
-use OneLiner::model;
-use OneLiner::runtime::{ModelInference, ModelSource};
+use oneliner::model;
+use oneliner::runtime::{ModelInference, ModelSource};
 
 use static_cell::ConstStaticCell;
 
@@ -32,7 +32,7 @@ const EXPECTED: [f32; OUTPUT_LEN] = [0.0; OUTPUT_LEN];
 fn main() {
     let artifacts = <Model as ModelSource>::ARTIFACTS;
     info!(
-        "OneLiner IREE example running on {}",
+        "Oneliner IREE example running on {}",
         ariel_os::buildinfo::BOARD
     );
     info!(
