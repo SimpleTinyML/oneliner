@@ -19,12 +19,12 @@ exclude = [
 [workspace.package]
 edition = "2024"
 rust-version = "1.95"
-authors = ["Zhaolan Huang"]
+authors = ["zhaolanhuang <zhaolan94@gmail.com>"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/zhaolanhuang/oneliner"
-homepage = "https://github.com/zhaolanhuang/oneliner"
-keywords = ["machine-learning", "inference", "embedded", "no-std", "iree"]
+repository = "https://github.com/SimpleTinyML/oneliner"
+homepage = "https://github.com/SimpleTinyML/oneliner"
+keywords = ["tinyml", "machine-learning", "deep-learning", "inference", "onnx", "tflite"]
 categories = ["science", "embedded", "no-std"]
 
 [workspace.dependencies]
