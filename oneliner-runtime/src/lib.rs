@@ -1,3 +1,8 @@
+#![cfg_attr(not(feature = "std"), no_std)]
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
 mod arena;
 mod buffer;
 mod executor;
@@ -6,14 +11,15 @@ mod interface;
 #[cfg(feature = "iree-runtime")]
 mod iree;
 
+#[cfg(feature = "ariel-os")]
+pub use executor::ArielOsExecutor;
 pub use buffer::{
-    concurrent, fill, Access,
-    BufferRange, Buffer, BufferMut, BufferSource, AnyBufferRange, AnyBuffer
+    concurrent, fill, Access, AnyBuffer, AnyBufferRange, Buffer, BufferMut, BufferRange,
+    BufferSource,
 };
-pub use executor::{DefaultExecutor, Executor, WorkItem};
+pub use executor::{DefaultExecutor, Executor, SequentialExecutor, WorkItem};
 pub use interface::{
-    Error, ModelArtifacts, ModelInference, ModelSource, Shape, Tensor, Tensor4D,
-    TensorArray,
+    Error, ModelArtifacts, ModelInference, ModelSource, Shape, Tensor, Tensor4D, TensorArray,
 };
 #[cfg(feature = "iree-runtime")]
 pub use iree::{
@@ -27,5 +33,4 @@ pub use iree::{
 pub use aligned::{Aligned, A16, A2, A32, A4, A64};
 pub type AlignedType = A64;
 
-
-pub use arena::{OwnedArena, SharedArena, ArenaStorage};
+pub use arena::{ArenaStorage, OwnedArena, SharedArena};

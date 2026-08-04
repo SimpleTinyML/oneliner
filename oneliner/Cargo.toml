@@ -9,24 +9,13 @@ name = "OneLiner"
 
 [features]
 default = ["iree-runtime"]
-alloc = []
-iree-runtime = []
-ariel-os = [
-    "dep:ariel-os",
-    "dep:oneliner-ariel-os-executor",
-]
-ndarray = ["dep:ndarray"]
+std = ["oneliner-runtime/std"]
+alloc = ["oneliner-runtime/alloc"]
+iree-runtime = ["oneliner-runtime/iree-runtime"]
+ariel-os = ["oneliner-runtime/ariel-os"]
+ndarray = ["oneliner-runtime/ndarray"]
 
 
 [dependencies]
-ndarray = { version = "0.17.2", default-features = false, optional = true }
 oneliner-macro = { path = "../oneliner-macro" }
-oneliner-ariel-os-executor = { path = "../oneliner-ariel-os-executor", optional = true, features = ["enabled"] }
-oneliner-executor = { path = "../oneliner-executor" }
-oneliner-iree-abi = { path = "../oneliner-iree-abi" }
-ariel-os = { version = ">=0.1.0", optional = true, default-features = false }
-critical-section = "1.2.0"
-defmt = { version = "1.0.0" }
-log = { version = "0.4.26"}
-aligned ={ version = "0.4.3" }
-portable-atomic = { version = "1", default-features = false }
+oneliner-runtime = { path = "../oneliner-runtime", default-features = false }

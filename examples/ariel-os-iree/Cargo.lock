@@ -6,16 +6,8 @@ version = 4
 name = "OneLiner"
 version = "0.1.0"
 dependencies = [
- "aligned",
- "ariel-os",
- "critical-section",
- "defmt",
- "log",
- "oneliner-ariel-os-executor",
- "oneliner-executor",
- "oneliner-iree-abi",
  "oneliner-macro",
- "portable-atomic",
+ "oneliner-runtime",
 ]
 
 [[package]]
@@ -2159,6 +2151,20 @@ dependencies = [
  "serde_json",
  "syn 1.0.109",
  "walkdir",
+]
+
+[[package]]
+name = "oneliner-runtime"
+version = "0.1.0"
+dependencies = [
+ "aligned",
+ "ariel-os",
+ "critical-section",
+ "log",
+ "oneliner-ariel-os-executor",
+ "oneliner-executor",
+ "oneliner-iree-abi",
+ "portable-atomic",
 ]
 
 [[package]]

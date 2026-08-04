@@ -5,7 +5,8 @@ extern crate alloc;
 
 pub use oneliner_macro::model;
 
-pub mod runtime;
+pub mod runtime {
+    pub use oneliner_runtime::*;
+}
 
-pub use runtime::{ModelArtifacts};
 

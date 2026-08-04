@@ -5,6 +5,7 @@ members = [
     "oneliner-executor",
     "oneliner-iree-abi",
     "oneliner-macro",
+    "oneliner-runtime",
     "tests/std",
 ]
 exclude = [
