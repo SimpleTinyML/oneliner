@@ -1,5 +1,9 @@
 # Oneliner
 
+[![Current Crates.io Version](https://img.shields.io/crates/v/oneliner.svg)](https://crates.io/crates/oneliner)
+[![Minimum Supported Rust Version](https://img.shields.io/crates/msrv/oneliner)](https://crates.io/crates/oneliner)
+[![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
+
 > **TinyML model inference with one-line code. Support `no_std` embedded targets.**
 
 Oneliner turns a model file into a callable Rust type with one attribute:
