@@ -24,7 +24,7 @@ license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/SimpleTinyML/oneliner"
 homepage = "https://github.com/SimpleTinyML/oneliner"
-keywords = ["tinyml", "machine-learning", "deep-learning", "inference", "onnx", "tflite"]
+keywords = ["tinyml", "machine-learning", "deep-learning", "onnx", "tflite"]
 categories = ["science", "embedded", "no-std"]
 
 [workspace.dependencies]
