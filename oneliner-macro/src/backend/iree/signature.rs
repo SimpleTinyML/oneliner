@@ -511,11 +511,11 @@ mod tests {
     #[test]
     fn parses_pytorch_exported_program_signature() {
         let text = r#"
-            module @abs2_pytorch {
+            module @lenet5_pytorch {
               func.func @main(
-                %arg0: !torch.vtensor<[1, 3, 4, 4],f32>
-              ) -> !torch.vtensor<[1, 2],si8> {
-                return %arg0 : !torch.vtensor<[1, 2],si8>
+                %arg0: !torch.vtensor<[1, 1, 32, 32],f32>
+              ) -> !torch.vtensor<[1, 10],f32> {
+                return %arg0 : !torch.vtensor<[1, 10],f32>
               }
             }
         "#;
@@ -523,8 +523,8 @@ mod tests {
         let signature = parse_model_signature(text, Path::new("model.torch.mlir")).unwrap();
 
         assert!(matches!(signature.input.element_type, ElementType::F32));
-        assert_eq!(signature.input.shape, [1, 3, 4, 4]);
-        assert!(matches!(signature.output.element_type, ElementType::I8));
-        assert_eq!(signature.output.shape, [1, 1, 1, 2]);
+        assert_eq!(signature.input.shape, [1, 1, 32, 32]);
+        assert!(matches!(signature.output.element_type, ElementType::F32));
+        assert_eq!(signature.output.shape, [1, 1, 1, 10]);
     }
 }

@@ -277,7 +277,21 @@ def dense_payload_to_bytes(payload: str, type_text: str) -> bytes | None:
     return None
 
 
-def dense_attr_to_bytes(item: str) -> bytes | None:
+def dense_attr_to_bytes(item: str, dense_resources: dict[str, bytes]) -> bytes | None:
+    resource_match = re.search(r"dense_resource<(?P<alias>[\w.$-]+)>", item)
+    if resource_match:
+        colon_pos = item.find(":", resource_match.end())
+        if colon_pos < 0:
+            return None
+        type_info = parse_tensor_type(item[colon_pos + 1 :])
+        if type_info is None:
+            return None
+        count, element_type = type_info
+        data = dense_resources.get(resource_match.group("alias"))
+        if data is None or len(data) != count * element_width(element_type):
+            return None
+        return data
+
     dense_pos = item.find("dense<")
     if dense_pos < 0:
         return None
@@ -290,7 +304,24 @@ def dense_attr_to_bytes(item: str) -> bytes | None:
     return dense_payload_to_bytes(payload, item[colon_pos + 1 :].strip())
 
 
-def composite_to_bytes(text: str) -> tuple[int | None, bytes | None]:
+def parse_dense_resources(text: str) -> dict[str, bytes]:
+    resources: dict[str, bytes] = {}
+    pattern = re.compile(
+        r'^[ \t]*(?P<alias>[\w.$-]+)[ \t]*:[ \t]*'
+        r'"0x(?P<data>[0-9A-Fa-f]*)"',
+        re.MULTILINE,
+        )
+    for match in pattern.finditer(text):
+        encoded = bytes.fromhex(match.group("data"))
+        if len(encoded) >= 4:
+            # MLIR prefixes resource blobs with a little-endian alignment field.
+            resources[match.group("alias")] = encoded[4:]
+    return resources
+
+
+def composite_to_bytes(
+    text: str, dense_resources: dict[str, bytes]
+) -> tuple[int | None, bytes | None]:
     marker = text.find("#util.composite")
     if marker < 0:
         return None, None
@@ -308,7 +339,7 @@ def composite_to_bytes(text: str) -> tuple[int | None, bytes | None]:
     list_close = find_matching(body, list_open, "[", "]")
     data = bytearray()
     for item in split_balanced_items(body[list_open + 1 : list_close]):
-        payload = dense_attr_to_bytes(item)
+        payload = dense_attr_to_bytes(item, dense_resources)
         if payload is None:
             return declared_size, None
         data.extend(payload)
@@ -319,13 +350,14 @@ def composite_to_bytes(text: str) -> tuple[int | None, bytes | None]:
 
 def parse_composite_constants(text: str) -> dict[str, ConstantBlob]:
     constants: dict[str, ConstantBlob] = {}
+    dense_resources = parse_dense_resources(text)
     pattern = re.compile(r"(?P<alias>#[\w.$-]+)\s*=\s*#util\.composite")
     for match in pattern.finditer(text):
         marker = text.find("#util.composite", match.start())
         open_pos = text.find("<", marker)
         close_pos = find_matching(text, open_pos, "<", ">")
         composite_text = text[marker : close_pos + 1]
-        declared_size, data = composite_to_bytes(composite_text)
+        declared_size, data = composite_to_bytes(composite_text, dense_resources)
         if data is None:
             continue
         name = f"constant_{rust_ident(match.group('alias'))}"
