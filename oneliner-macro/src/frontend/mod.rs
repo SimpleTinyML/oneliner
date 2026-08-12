@@ -21,44 +21,19 @@ pub(crate) enum ModelFormat {
 }
 
 #[derive(Debug)]
-pub(crate) enum ModelSource {
-    Mlir(PathBuf),
-    Onnx { path: PathBuf, imported: PathBuf },
-    Pytorch { path: PathBuf, imported: PathBuf },
-    Tflite { path: PathBuf, imported: PathBuf },
-}
-
-impl ModelSource {
-    pub(crate) fn into_paths(self) -> (PathBuf, PathBuf) {
-        match self {
-            Self::Mlir(path) => (path.clone(), path),
-            Self::Onnx { path, imported }
-            | Self::Pytorch { path, imported }
-            | Self::Tflite { path, imported } => (path, imported),
-        }
-    }
-}
-
-#[derive(Debug)]
+/// A frontend-prepared model ready for backend compilation.
 pub(crate) struct Model {
-    pub(crate) source: ModelSource,
+    /// Original model path supplied to `#[model]`.
+    pub(crate) source_path: PathBuf,
+    /// Model TOSA MLIR consumed by the backend compiler.
+    pub(crate) compile_input_path: PathBuf,
+    /// File stem of `compile_input_path`.
+    pub(crate) ir_dump_stem: String,
+    /// Validated model input and output tensor signature.
     pub(crate) signature: ModelSignature,
 }
 
 pub(crate) fn prepare(model_path: &LitStr, input_struct: &ItemStruct) -> syn::Result<Model> {
-    if !input_struct.generics.params.is_empty() || input_struct.generics.where_clause.is_some() {
-        return Err(syn::Error::new_spanned(
-            &input_struct.generics,
-            "#[model] currently supports only non-generic structs",
-        ));
-    }
-    if !matches!(input_struct.fields, syn::Fields::Unit) {
-        return Err(syn::Error::new_spanned(
-            &input_struct.fields,
-            "#[model] must be applied to a unit struct",
-        ));
-    }
-
     let caller_manifest_dir = std::env::var_os("CARGO_MANIFEST_DIR")
         .map(PathBuf::from)
         .ok_or_else(|| {
@@ -89,50 +64,40 @@ pub(crate) fn prepare(model_path: &LitStr, input_struct: &ItemStruct) -> syn::Re
         .map(rust_ident)
         .unwrap_or_else(|| struct_name.clone());
 
-    if format == ModelFormat::Onnx {
-        let signature = signature::load(format, &path, &path)?;
-        signature.validate()?;
-        let compile_input = normalized_path(&struct_name, &model_stem, "tosa.mlir")?;
-        normalize::onnx(&path, &compile_input)?;
-        return Ok(Model {
-            source: ModelSource::Onnx {
-                path,
-                imported: compile_input,
-            },
-            signature,
-        });
-    }
-
-    let compile_input = match format {
-        ModelFormat::Mlir => path.clone(),
+    let (compile_input_path, ir_dump_stem, signature) = match format {
+        ModelFormat::Mlir => {
+            let signature = signature::load(format, &path, &path)?;
+            (path.clone(), model_stem.clone(), signature)
+        }
+        ModelFormat::Onnx => {
+            let signature = signature::load(format, &path, &path)?;
+            let output = normalized_path(&struct_name, &model_stem, "tosa.mlir")?;
+            normalize::onnx(&path, &output)?;
+            let ir_dump_stem = rust_ident(output.file_stem().and_then(OsStr::to_str).unwrap());
+            (output, ir_dump_stem, signature)
+        }
         ModelFormat::PytorchExport => {
             let output = normalized_path(&struct_name, &model_stem, "torch.mlir")?;
             normalize::pytorch(&path, &output, &struct_name)?;
-            output
+            let signature = signature::load(format, &path, &output)?;
+            (output, struct_name, signature)
         }
         ModelFormat::Tflite => {
             let output = normalized_path(&struct_name, &model_stem, "tosa.mlir")?;
             normalize::tflite(&path, &output)?;
-            output
+            let signature = signature::load(format, &path, &output)?;
+            let ir_dump_stem = rust_ident(output.file_stem().and_then(OsStr::to_str).unwrap());
+            (output, ir_dump_stem, signature)
         }
-        ModelFormat::Onnx => unreachable!("ONNX is handled before normalization"),
     };
-    let signature = signature::load(format, &path, &compile_input)?;
     signature.validate()?;
 
-    let source = match format {
-        ModelFormat::Mlir => ModelSource::Mlir(path),
-        ModelFormat::PytorchExport => ModelSource::Pytorch {
-            path,
-            imported: compile_input,
-        },
-        ModelFormat::Tflite => ModelSource::Tflite {
-            path,
-            imported: compile_input,
-        },
-        ModelFormat::Onnx => unreachable!("ONNX is handled before normalization"),
-    };
-    Ok(Model { source, signature })
+    Ok(Model {
+        source_path: path,
+        compile_input_path,
+        ir_dump_stem,
+        signature,
+    })
 }
 
 fn normalized_path(struct_name: &str, model_stem: &str, suffix: &str) -> syn::Result<PathBuf> {
