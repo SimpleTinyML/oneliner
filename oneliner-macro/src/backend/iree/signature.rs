@@ -209,12 +209,12 @@ fn parse_model_signature(text: &str, path: &Path) -> syn::Result<ModelSignature>
             .ok_or_else(|| error(path, "@main has an unterminated output type list"))?;
         &after_arrow[1..close]
     } else {
-        let tensor_text = after_arrow
-            .strip_prefix("tensor<")
-            .ok_or_else(|| error(path, "@main output is not a tensor"))?;
+        let syntax = tensor_syntax_at_start(after_arrow)
+            .ok_or_else(|| error(path, "@main output is not a supported tensor"))?;
+        let tensor_text = &after_arrow[syntax.marker().len()..];
         let close = matching_angle_bracket(tensor_text)
             .ok_or_else(|| error(path, "@main has an unterminated output tensor type"))?;
-        &after_arrow[.."tensor<".len() + close + 1]
+        &after_arrow[..syntax.marker().len() + close + 1]
     };
     let outputs = parse_tensor_types(output_text, path, "output")?;
     let output = exactly_one_tensor(outputs, path, "output")?;
@@ -274,18 +274,50 @@ fn exactly_one_tensor(
 fn parse_tensor_types(text: &str, path: &Path, label: &str) -> syn::Result<Vec<TensorArtifact>> {
     let mut tensors = Vec::new();
     let mut remaining = text;
-    while let Some(offset) = remaining.find("tensor<") {
-        let tensor_text = &remaining[offset + "tensor<".len()..];
+    while let Some((offset, syntax)) = find_tensor_syntax(remaining) {
+        let tensor_text = &remaining[offset + syntax.marker().len()..];
         let close = matching_angle_bracket(tensor_text).ok_or_else(|| {
             error(
                 path,
                 format!("unterminated tensor type in @main {label} declaration"),
             )
         })?;
-        tensors.push(parse_tensor_type(&tensor_text[..close], path, label)?);
+        let tensor = match syntax {
+            TensorSyntax::Builtin => parse_tensor_type(&tensor_text[..close], path, label)?,
+            TensorSyntax::Torch => parse_torch_tensor_type(&tensor_text[..close], path, label)?,
+        };
+        tensors.push(tensor);
         remaining = &tensor_text[close + 1..];
     }
     Ok(tensors)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TensorSyntax {
+    Builtin,
+    Torch,
+}
+
+impl TensorSyntax {
+    const fn marker(self) -> &'static str {
+        match self {
+            Self::Builtin => "tensor<",
+            Self::Torch => "!torch.vtensor<",
+        }
+    }
+}
+
+fn tensor_syntax_at_start(text: &str) -> Option<TensorSyntax> {
+    [TensorSyntax::Torch, TensorSyntax::Builtin]
+        .into_iter()
+        .find(|syntax| text.starts_with(syntax.marker()))
+}
+
+fn find_tensor_syntax(text: &str) -> Option<(usize, TensorSyntax)> {
+    [TensorSyntax::Torch, TensorSyntax::Builtin]
+        .into_iter()
+        .filter_map(|syntax| text.find(syntax.marker()).map(|offset| (offset, syntax)))
+        .min_by_key(|(offset, _)| *offset)
 }
 
 fn parse_tensor_type(text: &str, path: &Path, label: &str) -> syn::Result<TensorArtifact> {
@@ -298,6 +330,39 @@ fn parse_tensor_type(text: &str, path: &Path, label: &str) -> syn::Result<Tensor
     let element = parts
         .pop()
         .ok_or_else(|| error(path, format!("empty @main {label} tensor type")))?;
+    tensor_artifact(parts, element, path, label)
+}
+
+fn parse_torch_tensor_type(text: &str, path: &Path, label: &str) -> syn::Result<TensorArtifact> {
+    let after_open = text
+        .strip_prefix('[')
+        .ok_or_else(|| error(path, format!("invalid PyTorch @main {label} tensor shape")))?;
+    let (shape, after_shape) = after_open.split_once(']').ok_or_else(|| {
+        error(
+            path,
+            format!("unterminated PyTorch @main {label} tensor shape"),
+        )
+    })?;
+    let element = after_shape
+        .strip_prefix(',')
+        .and_then(|rest| rest.split(',').next())
+        .map(str::trim)
+        .filter(|element| !element.is_empty())
+        .ok_or_else(|| error(path, format!("missing PyTorch @main {label} element type")))?;
+    let parts = if shape.trim().is_empty() {
+        Vec::new()
+    } else {
+        shape.split(',').collect()
+    };
+    tensor_artifact(parts, element, path, label)
+}
+
+fn tensor_artifact(
+    parts: Vec<&str>,
+    element: &str,
+    path: &Path,
+    label: &str,
+) -> syn::Result<TensorArtifact> {
     let element_type = parse_element_type(element.trim()).ok_or_else(|| {
         error(
             path,
@@ -441,5 +506,25 @@ mod tests {
         assert_eq!(signature.input.shape, [1, 1, 1, 2]);
         assert!(matches!(signature.output.element_type, ElementType::F32));
         assert_eq!(signature.output.shape, [1, 1, 1, 2]);
+    }
+
+    #[test]
+    fn parses_pytorch_exported_program_signature() {
+        let text = r#"
+            module @lenet5_pytorch {
+              func.func @main(
+                %arg0: !torch.vtensor<[1, 1, 32, 32],f32>
+              ) -> !torch.vtensor<[1, 10],f32> {
+                return %arg0 : !torch.vtensor<[1, 10],f32>
+              }
+            }
+        "#;
+
+        let signature = parse_model_signature(text, Path::new("model.torch.mlir")).unwrap();
+
+        assert!(matches!(signature.input.element_type, ElementType::F32));
+        assert_eq!(signature.input.shape, [1, 1, 32, 32]);
+        assert!(matches!(signature.output.element_type, ElementType::F32));
+        assert_eq!(signature.output.shape, [1, 1, 1, 10]);
     }
 }

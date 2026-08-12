@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const MODEL_EXTENSIONS: [&str; 3] = ["mlir", "onnx", "tflite"];
+const MODEL_EXTENSIONS: [&str; 4] = ["mlir", "onnx", "pt2", "tflite"];
 const ARENAS: [&str; 2] = ["owned", "shared"];
 
 #[test]
