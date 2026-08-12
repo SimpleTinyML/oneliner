@@ -53,21 +53,6 @@ pub(crate) fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
         .any(|window| window == needle)
 }
 
-pub(crate) fn env_first(names: &[&str]) -> Option<String> {
-    names.iter().find_map(|name| {
-        std::env::var(name)
-            .ok()
-            .map(|value| value.trim().to_owned())
-            .filter(|value| !value.is_empty())
-    })
-}
-
-pub(crate) fn env_first_os(names: &[&str]) -> Option<OsString> {
-    names.iter().find_map(|name| {
-        std::env::var_os(name).filter(|value| !value.to_string_lossy().trim().is_empty())
-    })
-}
-
 pub(crate) fn has_extension(path: &Path, expected: &str) -> bool {
     path.extension()
         .and_then(OsStr::to_str)
@@ -86,15 +71,6 @@ pub(crate) fn query_rustc_host() -> Option<String> {
         .lines()
         .find_map(|line| line.strip_prefix("host: "))
         .map(str::to_owned)
-}
-
-pub(crate) fn required_env(names: &[&str], label: &str) -> syn::Result<String> {
-    env_first(names).ok_or_else(|| {
-        syn::Error::new(
-            Span::call_site(),
-            format!("{label} is unavailable; set one of {}", names.join(", ")),
-        )
-    })
 }
 
 pub(crate) fn required_path_env(name: &str) -> syn::Result<PathBuf> {
