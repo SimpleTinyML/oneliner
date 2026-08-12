@@ -6,12 +6,12 @@ use proc_macro2::Span;
 use syn::Ident;
 use walkdir::WalkDir;
 
-use super::super::common::{parse_ident, rust_ident};
+use crate::utils::{contains_bytes, has_extension, parse_ident, rust_ident};
 
 pub(super) fn parse_query_function(object_path: &Path) -> syn::Result<(Ident, String)> {
     let header_path = object_path.with_extension("h");
-    validate_file(&header_path, "IREE object header")?;
-    let header = fs::read_to_string(&header_path).map_err(call_site_error)?;
+    let header = fs::read_to_string(&header_path)
+        .map_err(|error| syn::Error::new(Span::call_site(), error))?;
 
     let name = header
         .lines()
@@ -137,44 +137,6 @@ fn pass_order(path: &Path) -> usize {
         .and_then(|name| name.split_once('_').map(|(prefix, _)| prefix))
         .and_then(|prefix| prefix.parse().ok())
         .unwrap_or(usize::MAX)
-}
-
-fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
-    haystack
-        .windows(needle.len())
-        .any(|window| window == needle)
-}
-
-fn has_extension(path: &Path, expected: &str) -> bool {
-    path.extension()
-        .and_then(OsStr::to_str)
-        .is_some_and(|extension| extension.eq_ignore_ascii_case(expected))
-}
-
-pub(super) fn validate_file(path: &Path, label: &str) -> syn::Result<()> {
-    let metadata = fs::metadata(path).map_err(|error| {
-        syn::Error::new(
-            Span::call_site(),
-            format!("failed to inspect {label} at {}: {error}", path.display()),
-        )
-    })?;
-    if !metadata.is_file() {
-        return Err(syn::Error::new(
-            Span::call_site(),
-            format!("{label} is not a file: {}", path.display()),
-        ));
-    }
-    if metadata.len() == 0 {
-        return Err(syn::Error::new(
-            Span::call_site(),
-            format!("{label} is empty: {}", path.display()),
-        ));
-    }
-    Ok(())
-}
-
-fn call_site_error(error: impl std::fmt::Display) -> syn::Error {
-    syn::Error::new(Span::call_site(), error)
 }
 
 #[cfg(test)]

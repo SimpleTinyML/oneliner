@@ -6,8 +6,8 @@ use proc_macro2::Span;
 use serde::Deserialize;
 use syn::Ident;
 
-use super::super::common::parse_ident;
 use super::BindingArtifact;
+use crate::utils::parse_ident;
 
 #[derive(Debug)]
 pub(super) struct FlowMetadata {
@@ -57,7 +57,8 @@ enum BindingRole {
 }
 
 pub(super) fn load_metadata(path: &Path) -> syn::Result<FlowMetadata> {
-    let text = fs::read_to_string(path).map_err(call_site_error)?;
+    let text =
+        fs::read_to_string(path).map_err(|error| syn::Error::new(Span::call_site(), error))?;
     let document: MetadataDocument = serde_json::from_str(&text).map_err(|error| {
         syn::Error::new(
             Span::call_site(),
@@ -65,17 +66,20 @@ pub(super) fn load_metadata(path: &Path) -> syn::Result<FlowMetadata> {
         )
     })?;
     if document.schema_version != 1 {
-        return Err(error(format!(
-            "unsupported IREE metadata schema version {} in {}",
-            document.schema_version,
-            path.display()
-        )));
+        return Err(syn::Error::new(
+            Span::call_site(),
+            format!(
+                "unsupported IREE metadata schema version {} in {}",
+                document.schema_version,
+                path.display()
+            ),
+        ));
     }
     if document.cmd_executes.is_empty() {
-        return Err(error(format!(
-            "no cmd_execute entries were found in {}",
-            path.display()
-        )));
+        return Err(syn::Error::new(
+            Span::call_site(),
+            format!("no cmd_execute entries were found in {}", path.display()),
+        ));
     }
 
     let execute_fns = document
@@ -102,10 +106,13 @@ pub(super) fn load_metadata(path: &Path) -> syn::Result<FlowMetadata> {
             std::collections::btree_map::Entry::Occupied(entry)
                 if *entry.get() != (size, binding.role) =>
             {
-                return Err(error(format!(
-                    "binding '{}' has inconsistent size or role across execute blocks",
-                    binding.static_ident
-                )));
+                return Err(syn::Error::new(
+                    Span::call_site(),
+                    format!(
+                        "binding '{}' has inconsistent size or role across execute blocks",
+                        binding.static_ident
+                    ),
+                ));
             }
             std::collections::btree_map::Entry::Occupied(_) => {}
         }
@@ -123,7 +130,12 @@ pub(super) fn load_metadata(path: &Path) -> syn::Result<FlowMetadata> {
             .filter(|(_, (_, role))| matches!(role, BindingRole::Output | BindingRole::Inout)),
         "output",
     )?
-    .ok_or_else(|| error("IREE metadata does not contain an output binding"))?;
+    .ok_or_else(|| {
+        syn::Error::new(
+            Span::call_site(),
+            "IREE metadata does not contain an output binding",
+        )
+    })?;
 
     Ok(FlowMetadata {
         execute_fns,
@@ -138,14 +150,17 @@ fn unique_binding<'a>(
 ) -> syn::Result<Option<BindingArtifact>> {
     let candidates = candidates.collect::<Vec<_>>();
     if candidates.len() > 1 {
-        return Err(error(format!(
-            "multiple {label} bindings are not supported: {}",
-            candidates
-                .iter()
-                .map(|(name, _)| name.as_str())
-                .collect::<Vec<_>>()
-                .join(", ")
-        )));
+        return Err(syn::Error::new(
+            Span::call_site(),
+            format!(
+                "multiple {label} bindings are not supported: {}",
+                candidates
+                    .iter()
+                    .map(|(name, _)| name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        ));
     }
     let Some((_name, (size, _))) = candidates.into_iter().next() else {
         return Ok(None);
@@ -157,20 +172,12 @@ fn ensure_unique_idents(idents: &[Ident], label: &str) -> syn::Result<()> {
     let mut names = idents.iter().map(ToString::to_string).collect::<Vec<_>>();
     names.sort();
     if let Some(duplicate) = names.windows(2).find(|pair| pair[0] == pair[1]) {
-        return Err(error(format!(
-            "duplicate {label} '{}': metadata is invalid",
-            duplicate[0]
-        )));
+        return Err(syn::Error::new(
+            Span::call_site(),
+            format!("duplicate {label} '{}': metadata is invalid", duplicate[0]),
+        ));
     }
     Ok(())
-}
-
-fn error(message: impl std::fmt::Display) -> syn::Error {
-    syn::Error::new(Span::call_site(), message)
-}
-
-fn call_site_error(error: impl std::fmt::Display) -> syn::Error {
-    syn::Error::new(Span::call_site(), error)
 }
 
 #[cfg(test)]

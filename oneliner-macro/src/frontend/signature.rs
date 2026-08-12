@@ -4,8 +4,10 @@ use std::path::Path;
 use onnx_extractor::{DataType, Graph, Model, Tensor};
 use proc_macro2::Span;
 
+use super::ModelFormat;
+
 #[derive(Debug, Clone, Copy)]
-pub(super) enum ElementType {
+pub(crate) enum ElementType {
     I8,
     I16,
     I32,
@@ -19,7 +21,7 @@ pub(super) enum ElementType {
 }
 
 impl ElementType {
-    pub(super) fn rust_tokens(self) -> proc_macro2::TokenStream {
+    pub(crate) fn rust_tokens(self) -> proc_macro2::TokenStream {
         match self {
             Self::I8 => quote::quote!(i8),
             Self::I16 => quote::quote!(i16),
@@ -34,7 +36,7 @@ impl ElementType {
         }
     }
 
-    pub(super) const fn byte_width(self) -> usize {
+    pub(crate) const fn byte_width(self) -> usize {
         match self {
             Self::I8 | Self::U8 => 1,
             Self::I16 | Self::U16 => 2,
@@ -45,13 +47,13 @@ impl ElementType {
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct TensorArtifact {
-    pub element_type: ElementType,
-    pub shape: [usize; 4],
+pub(crate) struct TensorArtifact {
+    pub(crate) element_type: ElementType,
+    pub(crate) shape: [usize; 4],
 }
 
 impl TensorArtifact {
-    pub(super) fn byte_len(&self) -> Option<usize> {
+    pub(crate) fn byte_len(&self) -> Option<usize> {
         self.shape
             .iter()
             .try_fold(self.element_type.byte_width(), |size, dimension| {
@@ -61,19 +63,38 @@ impl TensorArtifact {
 }
 
 #[derive(Debug)]
-pub(super) struct ModelSignature {
-    pub input: TensorArtifact,
-    pub output: TensorArtifact,
+pub(crate) struct ModelSignature {
+    pub(crate) input: TensorArtifact,
+    pub(crate) output: TensorArtifact,
 }
 
-pub(super) fn load_model_signature(
+impl ModelSignature {
+    pub(super) fn validate(&self) -> syn::Result<()> {
+        for (label, tensor) in [("input", &self.input), ("output", &self.output)] {
+            tensor.byte_len().ok_or_else(|| {
+                syn::Error::new(
+                    Span::call_site(),
+                    format!(
+                        "{label} tensor byte size overflows usize for shape {:?}",
+                        tensor.shape
+                    ),
+                )
+            })?;
+        }
+        Ok(())
+    }
+}
+
+pub(super) fn load(
+    format: ModelFormat,
     model_path: &Path,
     compile_input_path: &Path,
 ) -> syn::Result<ModelSignature> {
-    if has_extension(model_path, "onnx") {
-        load_onnx_model_signature(model_path)
-    } else {
-        load_mlir_model_signature(compile_input_path)
+    match format {
+        ModelFormat::Onnx => load_onnx_model_signature(model_path),
+        ModelFormat::Mlir | ModelFormat::PytorchExport | ModelFormat::Tflite => {
+            load_mlir_model_signature(compile_input_path)
+        }
     }
 }
 
@@ -463,12 +484,6 @@ fn error(path: &Path, message: impl std::fmt::Display) -> syn::Error {
     )
 }
 
-fn has_extension(path: &Path, expected: &str) -> bool {
-    path.extension()
-        .and_then(std::ffi::OsStr::to_str)
-        .is_some_and(|extension| extension.eq_ignore_ascii_case(expected))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -526,5 +541,21 @@ mod tests {
         assert_eq!(signature.input.shape, [1, 1, 32, 32]);
         assert!(matches!(signature.output.element_type, ElementType::F32));
         assert_eq!(signature.output.shape, [1, 1, 1, 10]);
+    }
+
+    #[test]
+    fn rejects_tensor_byte_size_overflow() {
+        let signature = ModelSignature {
+            input: TensorArtifact {
+                element_type: ElementType::F64,
+                shape: [usize::MAX, 2, 1, 1],
+            },
+            output: TensorArtifact {
+                element_type: ElementType::F32,
+                shape: [1; 4],
+            },
+        };
+
+        assert!(signature.validate().is_err());
     }
 }

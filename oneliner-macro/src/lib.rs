@@ -1,8 +1,10 @@
 mod args;
 mod backend;
+mod frontend;
+mod utils;
 
 use proc_macro::TokenStream;
-use syn::{parse_macro_input, AttributeArgs, ItemStruct};
+use syn::{AttributeArgs, ItemStruct, parse_macro_input};
 
 /// Expands `#[model(...)]` on a unit struct into backend-specific model bindings.
 ///
@@ -14,7 +16,11 @@ pub fn model(attr: TokenStream, item: TokenStream) -> TokenStream {
     let attr = parse_macro_input!(attr as AttributeArgs);
     let input_struct = parse_macro_input!(item as ItemStruct);
 
-    match args::ModelArgs::parse(attr).and_then(|args| backend::expand(args, input_struct)) {
+    let expanded = args::ModelArgs::parse(attr).and_then(|args| {
+        let model = frontend::prepare(&args.model_path, &input_struct)?;
+        backend::expand(args.backend, args.arena, input_struct, model)
+    });
+    match expanded {
         Ok(tokens) => tokens.into(),
         Err(error) => error.into_compile_error().into(),
     }
