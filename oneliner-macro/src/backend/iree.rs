@@ -10,7 +10,7 @@ use proc_macro2::TokenStream;
 use syn::Ident;
 
 use crate::args::ArenaArg;
-use crate::frontend::{Model, TensorArtifact};
+use crate::frontend::{Model, TensorInfo};
 
 #[derive(Debug)]
 struct ArtifactPaths {
@@ -35,8 +35,8 @@ struct IreeArtifacts {
     execute_fns: Vec<Ident>,
     input: BindingArtifact,
     output: BindingArtifact,
-    input_tensor: TensorArtifact,
-    output_tensor: TensorArtifact,
+    input_tensor: TensorInfo,
+    output_tensor: TensorInfo,
 }
 
 pub fn expand(

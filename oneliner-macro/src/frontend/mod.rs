@@ -1,5 +1,5 @@
+mod model_io;
 mod normalize;
-mod signature;
 
 use std::ffi::OsStr;
 use std::fs;
@@ -10,7 +10,7 @@ use syn::{ItemStruct, LitStr};
 
 use crate::utils::rust_ident;
 
-pub(crate) use signature::{ModelSignature, TensorArtifact};
+pub(crate) use model_io::{ModelIo, TensorInfo};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ModelFormat {
@@ -29,8 +29,8 @@ pub(crate) struct Model {
     pub(crate) compile_input_path: PathBuf,
     /// File stem of `compile_input_path`.
     pub(crate) ir_dump_stem: String,
-    /// Validated model input and output tensor signature.
-    pub(crate) signature: ModelSignature,
+    /// Validated model input and output tensor metadata.
+    pub(crate) model_io: ModelIo,
 }
 
 pub(crate) fn prepare(model_path: &LitStr, input_struct: &ItemStruct) -> syn::Result<Model> {
@@ -64,39 +64,39 @@ pub(crate) fn prepare(model_path: &LitStr, input_struct: &ItemStruct) -> syn::Re
         .map(rust_ident)
         .unwrap_or_else(|| struct_name.clone());
 
-    let (compile_input_path, ir_dump_stem, signature) = match format {
+    let (compile_input_path, ir_dump_stem, model_io) = match format {
         ModelFormat::Mlir => {
-            let signature = signature::load(format, &path, &path)?;
-            (path.clone(), model_stem.clone(), signature)
+            let model_io = model_io::load_mlir(&path)?;
+            (path.clone(), model_stem.clone(), model_io)
         }
         ModelFormat::Onnx => {
-            let signature = signature::load(format, &path, &path)?;
+            let model_io = model_io::load_onnx(&path)?;
             let output = normalized_path(&struct_name, &model_stem, "tosa.mlir")?;
             normalize::onnx(&path, &output)?;
             let ir_dump_stem = rust_ident(output.file_stem().and_then(OsStr::to_str).unwrap());
-            (output, ir_dump_stem, signature)
+            (output, ir_dump_stem, model_io)
         }
         ModelFormat::PytorchExport => {
             let output = normalized_path(&struct_name, &model_stem, "torch.mlir")?;
             normalize::pytorch(&path, &output, &struct_name)?;
-            let signature = signature::load(format, &path, &output)?;
-            (output, struct_name, signature)
+            let model_io = model_io::load_mlir(&output)?;
+            (output, struct_name, model_io)
         }
         ModelFormat::Tflite => {
             let output = normalized_path(&struct_name, &model_stem, "tosa.mlir")?;
             normalize::tflite(&path, &output)?;
-            let signature = signature::load(format, &path, &output)?;
+            let model_io = model_io::load_mlir(&output)?;
             let ir_dump_stem = rust_ident(output.file_stem().and_then(OsStr::to_str).unwrap());
-            (output, ir_dump_stem, signature)
+            (output, ir_dump_stem, model_io)
         }
     };
-    signature.validate()?;
+    model_io.validate()?;
 
     Ok(Model {
         source_path: path,
         compile_input_path,
         ir_dump_stem,
-        signature,
+        model_io,
     })
 }
 

@@ -9,7 +9,7 @@ use super::discovery::parse_query_function;
 use super::metadata::load_metadata;
 use super::toolchain::{run_converter, run_iree_compile};
 use super::{ArtifactPaths, BindingArtifact, IreeArtifacts};
-use crate::frontend::{Model, TensorArtifact};
+use crate::frontend::{Model, TensorInfo};
 use crate::utils::{required_path_env, rust_ident};
 
 pub(super) fn build(struct_ident: &Ident, model: Model) -> syn::Result<IreeArtifacts> {
@@ -17,7 +17,7 @@ pub(super) fn build(struct_ident: &Ident, model: Model) -> syn::Result<IreeArtif
         source_path: model_path,
         compile_input_path,
         ir_dump_stem,
-        signature,
+        model_io,
     } = model;
     let struct_name = rust_ident(&struct_ident.to_string());
     let manifest_dir = required_path_env("CARGO_MANIFEST_DIR")?;
@@ -51,8 +51,8 @@ pub(super) fn build(struct_ident: &Ident, model: Model) -> syn::Result<IreeArtif
             "IREE metadata does not contain an input binding",
         )
     })?;
-    validate_tensor_size("input", &input, &signature.input)?;
-    validate_tensor_size("output", &metadata.output, &signature.output)?;
+    validate_tensor_size("input", &input, &model_io.input)?;
+    validate_tensor_size("output", &metadata.output, &model_io.output)?;
 
     Ok(IreeArtifacts {
         paths: ArtifactPaths {
@@ -68,15 +68,15 @@ pub(super) fn build(struct_ident: &Ident, model: Model) -> syn::Result<IreeArtif
         execute_fns: metadata.execute_fns,
         input,
         output: metadata.output,
-        input_tensor: signature.input,
-        output_tensor: signature.output,
+        input_tensor: model_io.input,
+        output_tensor: model_io.output,
     })
 }
 
 fn validate_tensor_size(
     label: &str,
     binding: &BindingArtifact,
-    tensor: &TensorArtifact,
+    tensor: &TensorInfo,
 ) -> syn::Result<()> {
     let tensor_size = tensor
         .byte_len()
