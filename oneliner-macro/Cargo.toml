@@ -27,4 +27,3 @@ quote.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 syn.workspace = true
-walkdir.workspace = true

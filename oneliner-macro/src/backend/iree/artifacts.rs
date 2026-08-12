@@ -5,21 +5,29 @@ use std::path::PathBuf;
 use proc_macro2::Span;
 use syn::Ident;
 
-use super::discovery::{find_stream_flow_ir, parse_query_function};
+use super::discovery::parse_query_function;
 use super::metadata::load_metadata;
 use super::toolchain::{run_converter, run_iree_compile};
 use super::{ArtifactPaths, BindingArtifact, IreeArtifacts};
-use crate::frontend::{Model, TensorArtifact};
+use crate::frontend::{Model, ModelSource, TensorArtifact};
 use crate::utils::{required_path_env, rust_ident};
 
 pub(super) fn build(struct_ident: &Ident, model: Model) -> syn::Result<IreeArtifacts> {
     let Model { source, signature } = model;
+    let struct_name = rust_ident(&struct_ident.to_string());
+    let ir_stem = match &source {
+        ModelSource::Mlir(path) => path.file_stem().and_then(OsStr::to_str),
+        ModelSource::Onnx { imported, .. } | ModelSource::Tflite { imported, .. } => {
+            imported.file_stem().and_then(OsStr::to_str)
+        }
+        ModelSource::Pytorch { .. } => Some(struct_name.as_str()),
+    }
+    .map(rust_ident).unwrap();
     let (model_path, compile_input_path) = source.into_paths();
     let manifest_dir = required_path_env("CARGO_MANIFEST_DIR")?;
     let out_root = std::env::var_os("OUT_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| manifest_dir.join("target").join("oneliner"));
-    let struct_name = rust_ident(&struct_ident.to_string());
     let model_stem = model_path
         .file_stem()
         .and_then(OsStr::to_str)
@@ -35,7 +43,7 @@ pub(super) fn build(struct_ident: &Ident, model: Model) -> syn::Result<IreeArtif
     run_iree_compile(&compile_input_path, &vmfb_path, &object_path, &ir_dump_dir)?;
     let (query_fn, query_link_name) = parse_query_function(&object_path)?;
 
-    let ir_path = find_stream_flow_ir(&artifact_dir)?;
+    let ir_path = ir_dump_dir.join(format!("{ir_stem}.10.executable-targets.mlir"));
     let flow_rs = artifact_dir.join(format!("{model_stem}.flow.rs"));
     let metadata_json = artifact_dir.join(format!("{model_stem}.flow.json"));
     run_converter(&ir_path, &flow_rs, &metadata_json)?;

@@ -47,18 +47,6 @@ pub(crate) fn rust_ident(raw: &str) -> String {
     ident
 }
 
-pub(crate) fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
-    haystack
-        .windows(needle.len())
-        .any(|window| window == needle)
-}
-
-pub(crate) fn has_extension(path: &Path, expected: &str) -> bool {
-    path.extension()
-        .and_then(OsStr::to_str)
-        .is_some_and(|extension| extension.eq_ignore_ascii_case(expected))
-}
-
 pub(crate) fn query_rustc_host() -> Option<String> {
     let compiler = std::env::current_exe().ok()?;
     let output = Command::new(compiler).arg("-vV").output().ok()?;
