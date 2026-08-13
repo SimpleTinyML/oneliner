@@ -3,19 +3,19 @@ use std::process::Command;
 
 use crate::utils::run_command;
 
-pub(super) fn tflite(input: &Path, output: &Path) -> syn::Result<()> {
+pub(super) fn from_tflite(input: &Path, output: &Path) -> syn::Result<()> {
     let mut command = Command::new("tosa-converter-for-tflite");
     command.arg(input).arg("--text").arg("-o").arg(output);
     run_command(&mut command, "tosa-converter-for-tflite")
 }
 
-pub(super) fn onnx(input: &Path, output: &Path) -> syn::Result<()> {
+pub(super) fn from_onnx(input: &Path, output: &Path) -> syn::Result<()> {
     let mut command = Command::new("iree-import-onnx");
     command.arg("-o").arg(output).arg(input);
     run_command(&mut command, "iree-import-onnx")
 }
 
-pub(super) fn pytorch(input: &Path, output: &Path, module_name: &str) -> syn::Result<()> {
+pub(super) fn from_pytorch(input: &Path, output: &Path, module_name: &str) -> syn::Result<()> {
     let mut command = Command::new("python");
     command
         .arg(

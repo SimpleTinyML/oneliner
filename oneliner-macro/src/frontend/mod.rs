@@ -1,5 +1,5 @@
+mod generate_input_mlir;
 mod model_io;
-mod normalize;
 
 use std::ffi::OsStr;
 use std::fs;
@@ -72,19 +72,19 @@ pub(crate) fn prepare(model_path: &LitStr, input_struct: &ItemStruct) -> syn::Re
         ModelFormat::Onnx => {
             let model_io = model_io::load_onnx(&path)?;
             let output = normalized_path(&struct_name, &model_stem, "tosa.mlir")?;
-            normalize::onnx(&path, &output)?;
+            generate_input_mlir::from_onnx(&path, &output)?;
             let ir_dump_stem = rust_ident(output.file_stem().and_then(OsStr::to_str).unwrap());
             (output, ir_dump_stem, model_io)
         }
         ModelFormat::PytorchExport => {
             let output = normalized_path(&struct_name, &model_stem, "torch.mlir")?;
-            normalize::pytorch(&path, &output, &struct_name)?;
+            generate_input_mlir::from_pytorch(&path, &output, &struct_name)?;
             let model_io = model_io::load_mlir(&output)?;
             (output, struct_name, model_io)
         }
         ModelFormat::Tflite => {
             let output = normalized_path(&struct_name, &model_stem, "tosa.mlir")?;
-            normalize::tflite(&path, &output)?;
+            generate_input_mlir::from_tflite(&path, &output)?;
             let model_io = model_io::load_mlir(&output)?;
             let ir_dump_stem = rust_ident(output.file_stem().and_then(OsStr::to_str).unwrap());
             (output, ir_dump_stem, model_io)
