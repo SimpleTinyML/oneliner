@@ -2,7 +2,6 @@ mod artifacts;
 mod codegen;
 mod discovery;
 mod metadata;
-mod signature;
 mod toolchain;
 
 use std::path::PathBuf;
@@ -11,6 +10,7 @@ use proc_macro2::TokenStream;
 use syn::Ident;
 
 use crate::args::ArenaArg;
+use crate::frontend::{Model, TensorInfo};
 
 #[derive(Debug)]
 struct ArtifactPaths {
@@ -35,16 +35,16 @@ struct IreeArtifacts {
     execute_fns: Vec<Ident>,
     input: BindingArtifact,
     output: BindingArtifact,
-    input_tensor: signature::TensorArtifact,
-    output_tensor: signature::TensorArtifact,
+    input_tensor: TensorInfo,
+    output_tensor: TensorInfo,
 }
 
 pub fn expand(
     input_struct: syn::ItemStruct,
-    model_path: PathBuf,
+    model: Model,
     arena: ArenaArg,
 ) -> syn::Result<TokenStream> {
-    let artifacts = artifacts::build(&input_struct.ident, model_path)?;
+    let artifacts = artifacts::build(&input_struct.ident, model)?;
 
     let expanded = codegen::expand(input_struct, artifacts, arena);
     // eprintln!("generated:\n{expanded}");

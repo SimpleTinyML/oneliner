@@ -42,7 +42,7 @@ def load_toolchain() -> tuple[Any, Any]:
     except ImportError as error:
         raise RuntimeError(
             "PyTorch support requires the 'iree-turbine' host package; install it "
-            "in the Python environment selected by ONELINER_PYTHON"
+            "in the active Python environment"
         ) from error
 
     return torch, aot

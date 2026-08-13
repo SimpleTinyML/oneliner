@@ -3,7 +3,13 @@ use syn::{AttributeArgs, Lit, LitStr, Meta, NestedMeta};
 
 pub struct ModelArgs {
     pub model_path: LitStr,
+    pub backend: BackendArg,
     pub arena: ArenaArg,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BackendArg {
+    Iree,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -16,7 +22,7 @@ impl ModelArgs {
     /// Parses `#[model("path", backend = "...", arena = "...")]` arguments.
     ///
     /// Input: `syn::AttributeArgs` from the procedural macro entry point.
-    /// Output: normalized model path literal and backend selector.
+    /// Output: model path literal, backend selector, and backend options.
     pub fn parse(args: AttributeArgs) -> syn::Result<Self> {
         let mut args = args.into_iter();
         let model_path = match args.next() {
@@ -30,16 +36,15 @@ impl ModelArgs {
             }
         };
 
-        let mut has_backend = false;
+        let mut backend = None;
         let mut arena = None;
         for arg in args {
             match arg {
                 NestedMeta::Meta(Meta::NameValue(meta)) if meta.path.is_ident("backend") => {
-                    if has_backend {
+                    if backend.is_some() {
                         return Err(syn::Error::new(meta.span(), "duplicate backend option"));
                     }
-                    parse_backend(meta.lit)?;
-                    has_backend = true;
+                    backend = Some(parse_backend(meta.lit)?);
                 }
                 NestedMeta::Meta(Meta::NameValue(meta)) if meta.path.is_ident("arena") => {
                     if arena.is_some() {
@@ -58,6 +63,7 @@ impl ModelArgs {
 
         Ok(Self {
             model_path,
+            backend: backend.unwrap_or(BackendArg::Iree),
             arena: arena.unwrap_or(ArenaArg::Owned),
         })
     }
@@ -67,7 +73,7 @@ impl ModelArgs {
 ///
 /// Input: `backend = "..."` literal.
 /// Output: `Ok(())` for IREE or a `syn::Error` for unsupported names.
-fn parse_backend(lit: Lit) -> syn::Result<()> {
+fn parse_backend(lit: Lit) -> syn::Result<BackendArg> {
     let value = match lit {
         Lit::Str(value) => value,
         other => {
@@ -79,7 +85,7 @@ fn parse_backend(lit: Lit) -> syn::Result<()> {
     };
 
     match value.value().trim().to_ascii_lowercase().as_str() {
-        "iree" => Ok(()),
+        "iree" => Ok(BackendArg::Iree),
         other => Err(syn::Error::new(
             value.span(),
             format!("unknown backend '{other}', expected 'iree'"),

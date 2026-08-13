@@ -3,9 +3,9 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{ItemStruct, LitStr, Meta, NestedMeta};
 
-use super::super::common::{path_lit, rust_ident};
 use super::IreeArtifacts;
 use crate::args::ArenaArg;
+use crate::utils::{path_lit, rust_ident};
 
 pub(super) fn expand(
     input_struct: ItemStruct,
