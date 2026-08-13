@@ -16,9 +16,11 @@ fn every_example_model_has_an_owned_and_shared_test() {
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", model_dir.display()))
         .map(|entry| entry.expect("failed to read model directory entry").path())
         .filter(|path| {
-            path.extension()
-                .and_then(|extension| extension.to_str())
-                .is_some_and(|extension| MODEL_EXTENSIONS.contains(&extension))
+            (path.is_dir() && path.join("saved_model.pb").is_file())
+                || path
+                    .extension()
+                    .and_then(|extension| extension.to_str())
+                    .is_some_and(|extension| MODEL_EXTENSIONS.contains(&extension))
         })
         .map(|path| {
             path.file_name()
