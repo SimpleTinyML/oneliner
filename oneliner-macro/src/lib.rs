@@ -17,7 +17,7 @@ pub fn model(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input_struct = parse_macro_input!(item as ItemStruct);
 
     let expanded = args::ModelArgs::parse(attr).and_then(|args| {
-        let model = frontend::prepare(&args.model_path, &input_struct)?;
+        let model = frontend::prepare(&args, &input_struct)?;
         backend::expand(args.backend, args.arena, input_struct, model)
     });
     match expanded {

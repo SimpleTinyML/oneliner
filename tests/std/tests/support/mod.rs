@@ -25,8 +25,12 @@ pub fn assert_artifacts<M: ModelSource>(model_name: &str) {
     assert!(input_size > 0, "{model_name}: empty input binding");
     assert!(output_size > 0, "{model_name}: empty output binding");
 
+    assert!(
+        Path::new(model_path).exists(),
+        "{model_name}: model does not exist: {model_path}"
+    );
+
     for (label, path) in [
-        ("model", model_path),
         ("compile input", compile_input_path),
         ("object", object_path),
         ("link", link_path),

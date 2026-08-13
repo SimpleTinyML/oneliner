@@ -1,6 +1,8 @@
 use proc_macro2::Span;
+use serde::Deserialize;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub(crate) enum ElementType {
     I8,
     I16,
@@ -40,7 +42,7 @@ impl ElementType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 pub(crate) struct TensorInfo {
     pub(crate) element_type: ElementType,
     pub(crate) shape: [usize; 4],
@@ -56,7 +58,7 @@ impl TensorInfo {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
 pub(crate) struct ModelIo {
     pub(crate) input: TensorInfo,
     pub(crate) output: TensorInfo,

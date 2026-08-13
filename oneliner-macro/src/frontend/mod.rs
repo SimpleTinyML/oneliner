@@ -6,26 +6,19 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use proc_macro2::Span;
-use syn::{ItemStruct, LitStr};
+use syn::ItemStruct;
 
+use crate::args::{ModelArgs, ModelFormat};
 use crate::utils::rust_ident;
 
 pub(crate) use model_io::{ModelIo, TensorInfo};
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ModelFormat {
-    Mlir,
-    Onnx,
-    PytorchExport,
-    Tflite,
-}
 
 #[derive(Debug)]
 /// A frontend-prepared model ready for backend compilation.
 pub(crate) struct Model {
     /// Original model path supplied to `#[model]`.
     pub(crate) source_path: PathBuf,
-    /// Model TOSA MLIR consumed by the backend compiler.
+    /// IREE-compatible model input consumed by the backend compiler.
     pub(crate) compile_input_path: PathBuf,
     /// File stem of `compile_input_path`.
     pub(crate) ir_dump_stem: String,
@@ -33,7 +26,8 @@ pub(crate) struct Model {
     pub(crate) model_io: ModelIo,
 }
 
-pub(crate) fn prepare(model_path: &LitStr, input_struct: &ItemStruct) -> syn::Result<Model> {
+pub(crate) fn prepare(args: &ModelArgs, input_struct: &ItemStruct) -> syn::Result<Model> {
+    let model_path = &args.model_path;
     let caller_manifest_dir = std::env::var_os("CARGO_MANIFEST_DIR")
         .map(PathBuf::from)
         .ok_or_else(|| {
@@ -49,20 +43,17 @@ pub(crate) fn prepare(model_path: &LitStr, input_struct: &ItemStruct) -> syn::Re
         caller_manifest_dir.join(path)
     };
     let struct_ident = &input_struct.ident;
-    if !path.is_file() {
-        return Err(syn::Error::new(
-            model_path.span(),
-            format!("model path is not a file: {}", path.display()),
-        ));
-    }
-
-    let format = detect_format(&path)?;
+    let format = args.format.map_or_else(|| detect_format(&path), Ok)?;
+    let expects_directory = format == ModelFormat::Tensorflow;
     let struct_name = rust_ident(&struct_ident.to_string());
-    let model_stem = path
-        .file_stem()
-        .and_then(OsStr::to_str)
-        .map(rust_ident)
-        .unwrap_or_else(|| struct_name.clone());
+    let model_stem = if expects_directory {
+        path.file_name()
+    } else {
+        path.file_stem()
+    }
+    .and_then(OsStr::to_str)
+    .map(rust_ident)
+    .unwrap_or_else(|| struct_name.clone());
 
     let (compile_input_path, ir_dump_stem, model_io) = match format {
         ModelFormat::Mlir => {
@@ -76,11 +67,19 @@ pub(crate) fn prepare(model_path: &LitStr, input_struct: &ItemStruct) -> syn::Re
             let ir_dump_stem = rust_ident(output.file_stem().and_then(OsStr::to_str).unwrap());
             (output, ir_dump_stem, model_io)
         }
-        ModelFormat::PytorchExport => {
+        ModelFormat::Pytorch => {
             let output = normalized_path(&struct_name, &model_stem, "torch.mlir")?;
             generate_input_mlir::from_pytorch(&path, &output, &struct_name)?;
             let model_io = model_io::load_mlir(&output)?;
             (output, struct_name, model_io)
+        }
+        ModelFormat::Tensorflow => {
+            let output = normalized_path(&struct_name, &model_stem, "tensorflow.mlir")?;
+            let io_output = normalized_path(&struct_name, &model_stem, "tensorflow.json")?;
+            generate_input_mlir::inspect_tensorflow(&path, &io_output)?;
+            let model_io = model_io::load_tensorflow_metadata(&io_output)?;
+            generate_input_mlir::from_tensorflow(&path, &output)?;
+            (output, "_".to_owned(), model_io)
         }
         ModelFormat::Tflite => {
             let output = normalized_path(&struct_name, &model_stem, "tosa.mlir")?;
@@ -137,7 +136,7 @@ fn detect_format(path: &Path) -> syn::Result<ModelFormat> {
     match extension.as_str() {
         "mlir" => Ok(ModelFormat::Mlir),
         "onnx" => Ok(ModelFormat::Onnx),
-        "pt2" => Ok(ModelFormat::PytorchExport),
+        "pt2" => Ok(ModelFormat::Pytorch),
         "tflite" => Ok(ModelFormat::Tflite),
         "pt" | "pth" => Err(syn::Error::new(
             Span::call_site(),
@@ -172,7 +171,7 @@ mod tests {
         );
         assert_eq!(
             detect_format(Path::new("model.pt2")).unwrap(),
-            ModelFormat::PytorchExport
+            ModelFormat::Pytorch
         );
         assert_eq!(
             detect_format(Path::new("model.TFLITE")).unwrap(),

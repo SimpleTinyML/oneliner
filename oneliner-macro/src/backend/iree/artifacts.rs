@@ -24,11 +24,14 @@ pub(super) fn build(struct_ident: &Ident, model: Model) -> syn::Result<IreeArtif
     let out_root = std::env::var_os("OUT_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| manifest_dir.join("target").join("oneliner"));
-    let model_stem = model_path
-        .file_stem()
-        .and_then(OsStr::to_str)
-        .map(rust_ident)
-        .unwrap_or_else(|| struct_name.clone());
+    let model_stem = if model_path.is_dir() {
+        model_path.file_name()
+    } else {
+        model_path.file_stem()
+    }
+    .and_then(OsStr::to_str)
+    .map(rust_ident)
+    .unwrap_or_else(|| struct_name.clone());
     let artifact_dir = out_root.join(format!("{struct_name}_iree_{model_stem}"));
     let ir_dump_dir = artifact_dir.join("iree-ir-dumps");
     fs::create_dir_all(&ir_dump_dir).map_err(|error| syn::Error::new(Span::call_site(), error))?;

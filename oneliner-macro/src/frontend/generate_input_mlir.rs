@@ -33,3 +33,26 @@ pub(super) fn from_pytorch(input: &Path, output: &Path, module_name: &str) -> sy
     }
     run_command(&mut command, "PyTorch ExportedProgram importer")
 }
+
+pub(super) fn from_tensorflow(input: &Path, output: &Path) -> syn::Result<()> {
+    let mut command = Command::new("iree-import-tf");
+    command
+        .arg("--tf-import-type=savedmodel_v2")
+        .arg("--tf-savedmodel-exported-names=main");
+    command.arg(input).arg("-o").arg(output);
+    run_command(&mut command, "iree-import-tf")
+}
+
+pub(super) fn inspect_tensorflow(input: &Path, output: &Path) -> syn::Result<()> {
+    let mut command = Command::new("python");
+    command
+        .arg(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("python")
+                .join("inspect_tensorflow_saved_model.py"),
+        )
+        .arg(input)
+        .arg("--output")
+        .arg(output);
+    run_command(&mut command, "TensorFlow SavedModel inspector")
+}

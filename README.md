@@ -50,6 +50,13 @@ Python 3.10 or newer is required. A virtual environment keeps the compiler tools
 pip install "iree-base-compiler[onnx]" tosa-converter-for-tflite
 ```
 
+To compile TensorFlow SavedModels, install TensorFlow and the matching IREE
+TensorFlow tools in the same environment:
+
+```sh
+pip install tensorflow iree-tools-tf
+```
+
 To compile PyTorch models, install the CPU build of PyTorch and IREE Turbine in
 the same environment. PyTorch, Turbine, and IREE must be mutually compatible,
 so pin a working combination together for reproducible builds:
@@ -65,7 +72,9 @@ Verify the installation:
 iree-compile --version
 tosa-converter-for-tflite --version
 iree-import-onnx --help
+iree-import-tf --help
 python -c "import torch, iree.turbine.aot"
+python -c "import tensorflow"
 ```
 
 The packages provide:
@@ -75,6 +84,8 @@ The packages provide:
 - `tosa-converter-for-tflite`: TFLite-to-TOSA import support
 - `torch`: exports and loads PyTorch `ExportedProgram` models
 - `iree-turbine`: imports PyTorch programs into IREE-compatible MLIR
+- `tensorflow`: loads and inspects SavedModel signatures
+- `iree-tools-tf`: imports TensorFlow SavedModels into IREE-compatible MLIR
 
 If you only use MLIR input, `iree-base-compiler` is sufficient.
 
@@ -137,6 +148,21 @@ input signature. Convert those checkpoints to `.pt2` before using them with
 OneLiner. Only load models from trusted sources because PyTorch deserialization
 uses pickle internally.
 
+### TensorFlow SavedModels
+
+OneLiner accepts TensorFlow SavedModel v2 directories. For the conventional
+exported `main` method and `serving_default` signature, only the format is
+needed:
+
+```rust
+#[model("models/my_saved_model", format = "tensorflow")]
+struct MyModel;
+```
+
+The model must expose a `main` method with a `serving_default` signature, and
+the directory must contain `saved_model.pb`. TensorFlow, `iree-tools-tf`, and
+`iree-base-compiler` should be pinned to mutually compatible versions.
+
 ## Examples
 
 Each example is an independent Cargo project. Run its commands from the example directory with the Python environment activated.
@@ -156,6 +182,7 @@ The built-in IREE backend currently accepts:
 - TFLite
 - ONNX
 - PyTorch `ExportedProgram` (`.pt2`)
+- TensorFlow SavedModel v2 directories
 - MLIR accepted by IREE
 
 The generated `ModelInference` API currently targets fixed-shape models with:

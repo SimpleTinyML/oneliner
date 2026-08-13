@@ -5,6 +5,7 @@ pub struct ModelArgs {
     pub model_path: LitStr,
     pub backend: BackendArg,
     pub arena: ArenaArg,
+    pub format: Option<ModelFormat>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -18,8 +19,17 @@ pub enum ArenaArg {
     Shared,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ModelFormat {
+    Mlir,
+    Onnx,
+    Pytorch,
+    Tensorflow,
+    Tflite,
+}
+
 impl ModelArgs {
-    /// Parses `#[model("path", backend = "...", arena = "...")]` arguments.
+    /// Parses `#[model("path", backend = "...", arena = "...", ...)]` arguments.
     ///
     /// Input: `syn::AttributeArgs` from the procedural macro entry point.
     /// Output: model path literal, backend selector, and backend options.
@@ -38,6 +48,7 @@ impl ModelArgs {
 
         let mut backend = None;
         let mut arena = None;
+        let mut format = None;
         for arg in args {
             match arg {
                 NestedMeta::Meta(Meta::NameValue(meta)) if meta.path.is_ident("backend") => {
@@ -52,10 +63,16 @@ impl ModelArgs {
                     }
                     arena = Some(parse_arena(meta.lit)?);
                 }
+                NestedMeta::Meta(Meta::NameValue(meta)) if meta.path.is_ident("format") => {
+                    if format.is_some() {
+                        return Err(syn::Error::new(meta.span(), "duplicate format option"));
+                    }
+                    format = Some(parse_format(meta.lit)?);
+                }
                 other => {
                     return Err(syn::Error::new(
                         other.span(),
-                        "unknown #[model] option, expected backend = \"...\" or arena = \"...\"",
+                        "unknown #[model] option; expected backend, arena, or format",
                     ));
                 }
             }
@@ -65,7 +82,30 @@ impl ModelArgs {
             model_path,
             backend: backend.unwrap_or(BackendArg::Iree),
             arena: arena.unwrap_or(ArenaArg::Owned),
+            format,
         })
+    }
+}
+
+fn parse_format(lit: Lit) -> syn::Result<ModelFormat> {
+    let Lit::Str(value) = lit else {
+        return Err(syn::Error::new(
+            lit.span(),
+            "format must be a string literal, for example format = \"tensorflow\"",
+        ));
+    };
+    match value.value().trim().to_ascii_lowercase().as_str() {
+        "mlir" => Ok(ModelFormat::Mlir),
+        "onnx" => Ok(ModelFormat::Onnx),
+        "pytorch" | "pt2" => Ok(ModelFormat::Pytorch),
+        "tensorflow" | "tf" => Ok(ModelFormat::Tensorflow),
+        "tflite" => Ok(ModelFormat::Tflite),
+        other => Err(syn::Error::new(
+            value.span(),
+            format!(
+                "unknown model format '{other}', expected 'mlir', 'onnx', 'pytorch', 'tensorflow', or 'tflite'"
+            ),
+        )),
     }
 }
 
@@ -134,5 +174,16 @@ mod tests {
         let args: AttributeArgs = vec![syn::parse_quote!("model.tflite")];
 
         assert!(ModelArgs::parse(args).is_ok());
+    }
+
+    #[test]
+    fn parses_tensorflow_format() {
+        let args: AttributeArgs = vec![
+            syn::parse_quote!("saved_model"),
+            syn::parse_quote!(format = "tensorflow"),
+        ];
+
+        let args = ModelArgs::parse(args).unwrap();
+        assert_eq!(args.format, Some(ModelFormat::Tensorflow));
     }
 }
