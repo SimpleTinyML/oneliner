@@ -116,13 +116,6 @@ pub(super) fn expand(
     };
 
     quote! {
-
-        // Besides making the source visible to generated code, include_bytes! tells
-        // Cargo/rustc to rebuild this expansion whenever the model artifact changes.
-        const _: () = {
-            let _ = include_bytes!(#model_path);
-        };
-
         #model_definition
 
         #[allow(improper_ctypes, non_camel_case_types, non_snake_case, non_upper_case_globals)]
