@@ -214,6 +214,12 @@ pub struct ModelArtifacts {
     pub ir_path: &'static str,
     pub flow_rs_path: &'static str,
     pub metadata_json_path: &'static str,
+    /// Size in bytes of the model's single input tensor.
     pub input_size: usize,
+    /// Size in bytes of the model's single output tensor.
     pub output_size: usize,
+    /// Constant/weight bytes placed in flash (read-only model data).
+    pub flash_size: usize,
+    /// Transient workspace bytes held in RAM during inference.
+    pub ram_size: usize,
 }

@@ -353,6 +353,7 @@ name = "oneliner"
 version = "0.1.0"
 dependencies = [
  "oneliner-macro",
+ "oneliner-profiler",
  "oneliner-runtime",
 ]
 
@@ -378,6 +379,13 @@ dependencies = [
  "serde",
  "serde_json",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "oneliner-profiler"
+version = "0.1.0"
+dependencies = [
+ "oneliner-runtime",
 ]
 
 [[package]]

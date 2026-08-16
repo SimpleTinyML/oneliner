@@ -37,6 +37,8 @@ struct IreeArtifacts {
     output: BindingArtifact,
     input_tensor: TensorInfo,
     output_tensor: TensorInfo,
+    flash_size: usize,
+    ram_size: usize,
 }
 
 pub fn expand(
@@ -45,6 +47,17 @@ pub fn expand(
     arena: ArenaArg,
 ) -> syn::Result<TokenStream> {
     let artifacts = artifacts::build(&input_struct.ident, model)?;
+
+    eprintln!(
+        "[oneliner-profiler] {}: flash = {} B ({} KiB), ram = {} B ({} KiB), input = {} B, output = {} B",
+        input_struct.ident,
+        artifacts.flash_size,
+        artifacts.flash_size / 1024,
+        artifacts.ram_size,
+        artifacts.ram_size / 1024,
+        artifacts.input.size,
+        artifacts.output.size,
+    );
 
     let expanded = codegen::expand(input_struct, artifacts, arena);
     // eprintln!("generated:\n{expanded}");

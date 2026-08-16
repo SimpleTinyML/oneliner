@@ -25,6 +25,8 @@ pub(super) fn expand(
     let metadata_json_path = path_lit(&paths.metadata_json);
     let input_size = artifacts.input.size;
     let output_size = artifacts.output.size;
+    let flash_size = artifacts.flash_size;
+    let ram_size = artifacts.ram_size;
     let execute_fns = &artifacts.execute_fns;
     let query_fn = &artifacts.query_fn;
     let query_link_name = LitStr::new(&artifacts.query_link_name, Span::call_site());
@@ -178,6 +180,8 @@ pub(super) fn expand(
                 metadata_json_path: #metadata_json_path,
                 input_size: #input_size,
                 output_size: #output_size,
+                flash_size: #flash_size,
+                ram_size: #ram_size,
             };
         }
 

@@ -73,6 +73,8 @@ pub(super) fn build(struct_ident: &Ident, model: Model) -> syn::Result<IreeArtif
         output: metadata.output,
         input_tensor: model_io.input,
         output_tensor: model_io.output,
+        flash_size: metadata.flash_size,
+        ram_size: metadata.ram_size,
     })
 }
 
