@@ -1,5 +1,6 @@
 use ariel_os::log::debug;
 use ariel_os::thread::sync::{Channel, Mutex};
+use ariel_os::thread::CORE_COUNT;
 use heapless::Deque;
 use portable_atomic::{AtomicUsize, Ordering};
 
@@ -11,17 +12,30 @@ static JOB_REMAINING: AtomicUsize = AtomicUsize::new(0);
 static TASKS: Channel<usize> = Channel::new();
 static TASK_QUEUE: Mutex<Deque<WorkItem, TASK_SLOT_COUNT>> = Mutex::new(Deque::new());
 
-/// Ariel OS executor backed by a small fixed worker pool.
-#[derive(Debug, Default, Clone, Copy)]
-pub struct ArielOsExecutor;
+/// Default executor for Ariel OS.
+///
+/// On multi-core MCUs (`CORE_COUNT > 1`) this is [`ArielOsExecutor`] with
+/// `MULTICORE = true` and schedules work on a small fixed worker pool. On
+/// single-core MCUs it degrades to [`ArielOsExecutor`] with `MULTICORE = false`,
+/// which runs work items immediately in submission order, mirroring
+/// `SequentialExecutor`.
+pub type DefaultExecutor = ArielOsExecutor<{ CORE_COUNT > 1 }>;
 
-impl ArielOsExecutor {
+/// Ariel OS executor.
+///
+/// When `MULTICORE` is `true` work items are executed by a small fixed worker
+/// pool running on separate cores. When `MULTICORE` is `false` work items run
+/// immediately in submission order, mirroring the `SequentialExecutor`.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct ArielOsExecutor<const MULTICORE: bool>;
+
+impl<const MULTICORE: bool> ArielOsExecutor<MULTICORE> {
     pub const fn new() -> Self {
         Self
     }
 }
 
-impl Executor for ArielOsExecutor {
+impl Executor for ArielOsExecutor<true> {
     fn schedule(&mut self, item: WorkItem) {
         loop {
             let result = {
@@ -47,6 +61,14 @@ impl Executor for ArielOsExecutor {
     }
 }
 
+impl Executor for ArielOsExecutor<false> {
+    fn schedule(&mut self, item: WorkItem) {
+        item.run();
+    }
+
+    fn wait_job_completion(&mut self) {}
+}
+
 fn worker_loop() -> ! {
     let thread_id = ariel_os::thread::current_tid().unwrap();
     let core = ariel_os::thread::core_id();
@@ -68,10 +90,16 @@ fn worker_loop() -> ! {
 
 #[ariel_os::thread(autostart)]
 fn oneliner_ariel_os_worker_0() {
+    if CORE_COUNT <= 1 {
+        return;
+    }
     worker_loop();
 }
 
 #[ariel_os::thread(autostart)]
 fn oneliner_ariel_os_worker_1() {
+    if CORE_COUNT <= 1 {
+        return;
+    }
     worker_loop();
 }
