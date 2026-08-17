@@ -1,0 +1,29 @@
+[package]
+name = "oneliner-profiler"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Inference latency and memory footprint profiling for Oneliner models"
+documentation = "https://docs.rs/oneliner-profiler"
+
+[lints]
+workspace = true
+
+[features]
+default = ["std"]
+std = []
+ariel-os = ["dep:ariel-os"]
+embassy = ["dep:embassy-time"]
+
+[dependencies]
+ariel-os = { workspace = true, optional = true }
+defmt.workspace = true
+embassy-time = { workspace = true, optional = true }
+oneliner-runtime.workspace = true

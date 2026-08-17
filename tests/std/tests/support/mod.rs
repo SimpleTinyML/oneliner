@@ -15,6 +15,11 @@ pub fn assert_artifacts<M: ModelSource>(model_name: &str) {
         metadata_json_path,
         input_size,
         output_size,
+        params_size,
+        code_size,
+        rodata_size,
+        total_flash_size,
+        ram_size,
     } = M::ARTIFACTS;
 
     assert_eq!(backend, "iree", "{model_name}: unexpected backend");
@@ -24,6 +29,18 @@ pub fn assert_artifacts<M: ModelSource>(model_name: &str) {
     );
     assert!(input_size > 0, "{model_name}: empty input binding");
     assert!(output_size > 0, "{model_name}: empty output binding");
+    // Footprints may be zero for models without weights or scratch buffers
+    // (for example a trivial identity/abs graph); they must still be reported.
+    assert!(
+        code_size > 0,
+        "{model_name}: compiled model object must contain machine code"
+    );
+    assert_eq!(
+        total_flash_size,
+        params_size + code_size + rodata_size,
+        "{model_name}: total flash must equal params + code + rodata"
+    );
+    let _ = ram_size;
 
     assert!(
         Path::new(model_path).exists(),

@@ -1,6 +1,7 @@
 use log::{error, info};
 
 use oneliner::model;
+use oneliner::profiler::Profiler;
 use oneliner::runtime::{ModelInference, ModelSource};
 
 #[model(
@@ -17,15 +18,22 @@ fn main() {
     let artifacts = <Model as ModelSource>::ARTIFACTS;
     env_logger::init();
     info!(
-        "Model artifact sizes: input={} output={}",
-        artifacts.input_size, artifacts.output_size
+        "Flash usage: params={} code={} rodata={} total={} | RAM usage: arena={} input={} output={}",
+        artifacts.params_size,
+        artifacts.code_size,
+        artifacts.rodata_size,
+        artifacts.total_flash_size,
+        artifacts.ram_size,
+        artifacts.input_size,
+        artifacts.output_size
     );
 
     let mut model = Model::new();
+    let mut profiler = Profiler::new();
     let mut input = Model::create_input_tensor();
     input.fill(7);
-    let output = model.run(&input);
 
+    let output = profiler.profile(|| model.run(&input));
     let actual = output.as_slice();
     if actual == EXPECTED {
         info!("Model IREE validation passed");
@@ -40,4 +48,5 @@ fn main() {
             EXPECTED[0], EXPECTED[1], actual[0], actual[1]
         );
     }
+    info!("Profiled inference stats: {}", profiler.stats());
 }

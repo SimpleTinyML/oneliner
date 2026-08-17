@@ -7,6 +7,7 @@ use syn::Ident;
 
 use super::discovery::parse_query_function;
 use super::metadata::load_metadata;
+use super::object_size::measure_object;
 use super::toolchain::{run_converter, run_iree_compile};
 use super::{ArtifactPaths, BindingArtifact, IreeArtifacts};
 use crate::frontend::{Model, TensorInfo};
@@ -41,6 +42,7 @@ pub(super) fn build(struct_ident: &Ident, model: Model) -> syn::Result<IreeArtif
 
     run_iree_compile(&compile_input_path, &vmfb_path, &object_path, &ir_dump_dir)?;
     let (query_fn, query_link_name) = parse_query_function(&object_path)?;
+    let footprint = measure_object(&object_path)?;
 
     let ir_path = ir_dump_dir.join(format!("{ir_dump_stem}.10.executable-targets.mlir"));
     let flow_rs = artifact_dir.join(format!("{model_stem}.flow.rs"));
@@ -73,6 +75,10 @@ pub(super) fn build(struct_ident: &Ident, model: Model) -> syn::Result<IreeArtif
         output: metadata.output,
         input_tensor: model_io.input,
         output_tensor: model_io.output,
+        params_size: metadata.params_size,
+        code_size: footprint.code_size,
+        rodata_size: footprint.rodata_size,
+        ram_size: metadata.ram_size,
     })
 }
 
