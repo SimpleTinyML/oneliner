@@ -19,7 +19,8 @@ info!("Profiled inference stats: {}", profiler.stats());
 - Build-time TFLite import and IREE compilation
 - A fully typed model API in `no_std`
 - Inference from an Ariel OS thread
-- Automatic flash/RAM footprint report printed during compilation
+- Automatic flash footprint report (parameters, machine code, read-only
+  data, and total) plus RAM workspace, printed during compilation
 - Runtime latency profiling with `Profiler`, using the built-in
   `ArielOsTimer` (chosen automatically as the default timer)
 - Model artifact size logging
@@ -69,7 +70,8 @@ If your toolchain is stored in a Conda environment, prefix the commands with `co
 The application:
 
 1. reports the active Ariel OS board;
-2. reports the generated artifact sizes (input, output, flash, RAM workspace);
+2. reports the generated artifact sizes (input, output, parameters, machine
+   code, read-only data, total flash, RAM workspace);
 3. fills the typed input tensor with `7.0`;
 4. runs inference inside a profiled scope and reports the latency statistics;
 5. compares the result with `EXPECTED`;

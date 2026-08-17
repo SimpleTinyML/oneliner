@@ -23,8 +23,14 @@ async fn main(_spawner: Spawner) {
     let artifacts = <Model as ModelSource>::ARTIFACTS;
 
     info!(
-        "Model artifact sizes: input={} output={} flash={} ram={}",
-        artifacts.input_size, artifacts.output_size, artifacts.flash_size, artifacts.ram_size
+        "Flash usage: params={} code={} rodata={} total={} | RAM usage: arena={} input={} output={}",
+        artifacts.params_size,
+        artifacts.code_size,
+        artifacts.rodata_size,
+        artifacts.total_flash_size,
+        artifacts.ram_size,
+        artifacts.input_size,
+        artifacts.output_size
     );
 
     let mut model = Model::new();

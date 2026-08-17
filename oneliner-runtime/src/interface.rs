@@ -218,8 +218,15 @@ pub struct ModelArtifacts {
     pub input_size: usize,
     /// Size in bytes of the model's single output tensor.
     pub output_size: usize,
-    /// Constant/weight bytes placed in flash (read-only model data).
-    pub flash_size: usize,
+    /// Model parameter/weight bytes placed in flash (read-only model data).
+    pub params_size: usize,
+    /// Machine code bytes of the compiled model placed in flash.
+    pub code_size: usize,
+    /// Read-only data bytes embedded in the compiled model object (lookup
+    /// tables, library metadata, unwind tables) placed in flash.
+    pub rodata_size: usize,
+    /// Total model flash footprint: parameters plus compiled code and data.
+    pub total_flash_size: usize,
     /// Transient workspace bytes held in RAM during inference.
     pub ram_size: usize,
 }

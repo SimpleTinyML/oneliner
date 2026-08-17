@@ -24,7 +24,8 @@ let output = profiler.profile(|| model.run(&input));
 - A synchronized shared workspace to avoid per-instance model workspaces
 - Static input tensor storage to keep the large input off the task stack
 - `defmt` logging over RTT
-- Automatic flash/RAM footprint report printed during compilation
+- Automatic flash footprint report (parameters, machine code, read-only
+  data, and total) plus RAM workspace, printed during compilation
 - Runtime latency profiling with `Profiler`, using the built-in
   `EmbassyTimer` (chosen automatically as the default timer)
 
@@ -77,7 +78,8 @@ probe-rs run --chip RP2040
 ## Expected Behavior
 
 The application initializes the RP2040, reports model artifact sizes (input,
-output, flash, RAM workspace), fills the static input tensor, runs inference
+output, parameters, machine code, read-only data, total flash, RAM workspace),
+fills the static input tensor, runs inference
 inside a profiled scope, and reports the latency statistics over RTT.
 `LatencyStats` implements `defmt::Format`, so the profiler statistics are
 logged directly (`samples=... avg_us=... min_us=... max_us=...`).

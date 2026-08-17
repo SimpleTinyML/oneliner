@@ -13,7 +13,7 @@ pub(super) struct FlowMetadata {
     pub input: Option<BindingArtifact>,
     pub output: BindingArtifact,
     /// Deduplicated constant/weight bytes placed in flash.
-    pub flash_size: usize,
+    pub params_size: usize,
     /// Deduplicated transient workspace bytes held in RAM.
     pub ram_size: usize,
 }
@@ -75,13 +75,13 @@ pub(super) fn load_metadata(path: &Path) -> syn::Result<FlowMetadata> {
         .map(|size| BindingArtifact { size })
         .unwrap();
 
-    let (flash_size, ram_size) = footprint_sizes(resources.iter().copied());
+    let (params_size, ram_size) = footprint_sizes(resources.iter().copied());
 
     Ok(FlowMetadata {
         execute_fns,
         input,
         output,
-        flash_size,
+        params_size,
         ram_size,
     })
 }
@@ -91,7 +91,7 @@ pub(super) fn load_metadata(path: &Path) -> syn::Result<FlowMetadata> {
 /// A constant or temporary shared by several `cmd_execute` blocks is rendered
 /// as a single Rust static, so it must contribute to the footprint only once.
 fn footprint_sizes<'a>(resources: impl Iterator<Item = &'a Resource>) -> (usize, usize) {
-    let mut flash_size = 0usize;
+    let mut params_size = 0usize;
     let mut ram_size = 0usize;
     let mut seen_flash = std::collections::HashSet::new();
     let mut seen_ram = std::collections::HashSet::new();
@@ -99,7 +99,7 @@ fn footprint_sizes<'a>(resources: impl Iterator<Item = &'a Resource>) -> (usize,
         match (&resource.role, resource.size) {
             (Role::Constant, Some(size)) => {
                 if seen_flash.insert(resource.static_ident.as_deref()) {
-                    flash_size += size;
+                    params_size += size;
                 }
             }
             (Role::Temporary, Some(size)) => {
@@ -110,7 +110,7 @@ fn footprint_sizes<'a>(resources: impl Iterator<Item = &'a Resource>) -> (usize,
             _ => {}
         }
     }
-    (flash_size, ram_size)
+    (params_size, ram_size)
 }
 
 #[cfg(test)]

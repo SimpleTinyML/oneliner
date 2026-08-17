@@ -21,6 +21,7 @@ name = "oneliner_macro"
 proc-macro = true
 
 [dependencies]
+object.workspace = true
 onnx-extractor.workspace = true
 proc-macro2.workspace = true
 quote.workspace = true

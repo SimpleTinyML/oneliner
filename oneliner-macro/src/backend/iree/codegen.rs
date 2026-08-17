@@ -25,7 +25,10 @@ pub(super) fn expand(
     let metadata_json_path = path_lit(&paths.metadata_json);
     let input_size = artifacts.input.size;
     let output_size = artifacts.output.size;
-    let flash_size = artifacts.flash_size;
+    let params_size = artifacts.params_size;
+    let code_size = artifacts.code_size;
+    let rodata_size = artifacts.rodata_size;
+    let total_flash_size = params_size + code_size + rodata_size;
     let ram_size = artifacts.ram_size;
     let execute_fns = &artifacts.execute_fns;
     let query_fn = &artifacts.query_fn;
@@ -180,7 +183,10 @@ pub(super) fn expand(
                 metadata_json_path: #metadata_json_path,
                 input_size: #input_size,
                 output_size: #output_size,
-                flash_size: #flash_size,
+                params_size: #params_size,
+                code_size: #code_size,
+                rodata_size: #rodata_size,
+                total_flash_size: #total_flash_size,
                 ram_size: #ram_size,
             };
         }

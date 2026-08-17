@@ -15,7 +15,10 @@ pub fn assert_artifacts<M: ModelSource>(model_name: &str) {
         metadata_json_path,
         input_size,
         output_size,
-        flash_size,
+        params_size,
+        code_size,
+        rodata_size,
+        total_flash_size,
         ram_size,
     } = M::ARTIFACTS;
 
@@ -28,7 +31,16 @@ pub fn assert_artifacts<M: ModelSource>(model_name: &str) {
     assert!(output_size > 0, "{model_name}: empty output binding");
     // Footprints may be zero for models without weights or scratch buffers
     // (for example a trivial identity/abs graph); they must still be reported.
-    let _ = (flash_size, ram_size);
+    assert!(
+        code_size > 0,
+        "{model_name}: compiled model object must contain machine code"
+    );
+    assert_eq!(
+        total_flash_size,
+        params_size + code_size + rodata_size,
+        "{model_name}: total flash must equal params + code + rodata"
+    );
+    let _ = ram_size;
 
     assert!(
         Path::new(model_path).exists(),
