@@ -6,7 +6,6 @@ use oneliner::runtime::{ModelInference, ModelSource};
 
 #[model(
     "../models/mcunet-10fps_vww.tflite",
-    backend = "iree",
 )]
 struct Model;
 const INPUT_LEN: usize = 64 * 64 * 3;
