@@ -40,7 +40,7 @@ You need:
 - a debug probe supported by `probe-rs`;
 - `probe-rs` installed on the host;
 - the stable Rust toolchain and `thumbv6m-none-eabi` target;
-- the Python/IREE toolchain from the [project README](../../README.md#1-install-the-host-model-toolchain).
+- the Python/IREE toolchain from [docs/installation.md](../../docs/installation.md).
 
 The included Rust toolchain and Cargo configuration select the RP2040 target automatically. Keep the Python virtual environment active during the build.
 
@@ -91,4 +91,4 @@ When replacing the bundled model:
 4. check the generated artifact sizes and the board's RAM/flash limits;
 5. adjust `memory.x` only if the board memory map is different.
 
-Validate a new model with the [desktop example](../std-iree/) before compiling it for RP2040.
+Validate a new model with the [desktop example](../std-minimal/) before compiling it for RP2040.
