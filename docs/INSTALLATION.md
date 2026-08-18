@@ -6,20 +6,17 @@ work.
 
 ## Prerequisites
 
-- Python 3.10 or newer
-- A working Rust toolchain (`rustc` 1.95 or newer)
-- `cargo` on your `PATH`
+- Python 3.12 or newer
+- MSRV: 1.95
 
 ## Install the compiler packages
 
-A virtual environment keeps the compiler tools isolated from the rest of your
-system. Activate it before every build that uses `#[model(...)]`:
+All packages below are pinned to the exact versions verified during Oneliner
+development (in a conda environment named `ariel_ml`). All of them are stable
+releases from PyPI — no release candidates or nightly builds.
 
 ```sh
-python -m venv .venv
-source .venv/bin/activate
-
-pip install "iree-base-compiler[onnx]" tosa-converter-for-tflite
+pip install "iree-base-compiler[onnx]==3.11.0" tosa-converter-for-tflite==2026.2.0
 ```
 
 This covers TFLite, ONNX, and MLIR models.
@@ -30,7 +27,7 @@ To compile TensorFlow SavedModels, install TensorFlow and the matching IREE
 TensorFlow tools in the same environment:
 
 ```sh
-pip install tensorflow iree-tools-tf
+pip install tensorflow==2.21.0 iree-tools-tf==20250718.1326
 ```
 
 ### PyTorch models
@@ -40,8 +37,8 @@ the same environment. PyTorch, Turbine, and IREE must be mutually compatible, so
 pin a working combination together for reproducible builds:
 
 ```sh
-pip install torch --index-url https://download.pytorch.org/whl/cpu
-pip install iree-turbine
+pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
+pip install iree-turbine==3.9.0
 ```
 
 ## Verify the installation
@@ -57,14 +54,15 @@ python -c "import tensorflow"
 
 ## Package reference
 
-| Package | Purpose |
-| --- | --- |
-| `iree-base-compiler` | The IREE compiler used for every model |
-| `iree-base-compiler[onnx]` | ONNX import support |
-| `tosa-converter-for-tflite` | TFLite-to-TOSA import support |
-| `torch` | Exports and loads PyTorch `ExportedProgram` models |
-| `iree-turbine` | Imports PyTorch programs into IREE-compatible MLIR |
-| `tensorflow` | Loads and inspects SavedModel signatures |
-| `iree-tools-tf` | Imports TensorFlow SavedModels into IREE-compatible MLIR |
+The following pinned combination is verified to work together:
+
+| Package | Pinned version | Purpose |
+| --- | --- | --- |
+| `iree-base-compiler[onnx]` | `3.11.0` | The IREE compiler (plus ONNX import) used for every model |
+| `tosa-converter-for-tflite` | `2026.2.0` | TFLite-to-TOSA import support |
+| `torch` | `2.13.0+cpu` | Exports and loads PyTorch `ExportedProgram` models |
+| `iree-turbine` | `3.9.0` | Imports PyTorch programs into IREE-compatible MLIR |
+| `tensorflow` | `2.21.0` | Loads and inspects SavedModel signatures |
+| `iree-tools-tf` | `20250718.1326` | Imports TensorFlow SavedModels into IREE-compatible MLIR |
 
 If you only use MLIR input, `iree-base-compiler` is sufficient.
