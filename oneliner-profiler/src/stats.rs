@@ -131,19 +131,18 @@ mod tests {
         assert_eq!(stats, LatencyStats::default());
     }
 
-    #[cfg(feature = "std")]
-#[test]
-    fn formats_durations() {
-        use crate::std::string::ToString;
+#[cfg(feature = "std")]
+fn formats_durations() {
+    use std::string::ToString;
 
-        assert_eq!(FormatDuration(Duration::from_micros(5)).to_string(), "5us");
-        assert_eq!(
-            FormatDuration(Duration::from_millis(12)).to_string(),
-            "12ms"
-        );
-        assert_eq!(
-            FormatDuration(Duration::from_secs(3)).to_string(),
-            "3.000s"
-        );
-    }
+    assert_eq!(FormatDuration(Duration::from_micros(5)).to_string(), "5us");
+    assert_eq!(
+        FormatDuration(Duration::from_millis(12)).to_string(),
+        "12ms"
+    );
+    assert_eq!(
+        FormatDuration(Duration::from_secs(3)).to_string(),
+        "3.000s"
+    );
+}
 }
