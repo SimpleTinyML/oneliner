@@ -1,49 +1,29 @@
 # Oneliner
 
+**TinyML model inference with one-line code. Focus on `no_std` embedded targets.**
+
 [![Current Crates.io Version](https://img.shields.io/crates/v/oneliner.svg)](https://crates.io/crates/oneliner)
 [![Minimum Supported Rust Version](https://img.shields.io/crates/msrv/oneliner)](https://crates.io/crates/oneliner)
 [![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
 
-> **TinyML model inference with one-line code. Support `no_std` embedded targets.**
 
-Oneliner turns a model file into a callable Rust type with one attribute:
-
-```rust
-#[model("models/model.tflite")]
-struct MyModel;
-```
-
-At build time, Oneliner imports the model, compiles it for the selected Rust target, generates the Rust binding, and links the native model code. At runtime, your application works with ordinary, strongly typed Rust tensors.
-
-```rust
-use oneliner::model;
-use oneliner::runtime::ModelInference;
-
-#[model("models/model.tflite")]
-struct MyModel;
-
-fn main() {
-    let mut model = MyModel::new();
-    let mut input = MyModel::create_input_tensor();
-    input.fill(1);
-
-    let output = model.run(&input);
-    println!("{:?}", output.as_slice());
-}
-```
 
 ## Why Oneliner?
 
-- **One-line model binding:** Replace conversion scripts, native linking setup, tensor declarations, and dispatch glue with `#[model(...)]`.
-- **Typed inputs and outputs:** Tensor element types and shapes come from the model, so mismatches surface during the build instead of on the device.
-- **Made for on-device inference:** The model is compiled into target-native code. Inference does not depend on a cloud service.
-- **Embedded-ready:** The runtime supports `no_std` and is demonstrated with Ariel OS and Embassy on RP2040.
-- **Memory-aware by design:** Choose independent per-instance workspaces or one synchronized shared workspace.
-- **Profiling built in:** Measure inference latency and build-time flash/RAM footprint with the optional `profiler` feature.
+- **One-line model deployment:** Replace conversion scripts, native linking setup, tensor declarations, and dispatch glue with `#[model(...)]`.
+- **Embedded-ready:** The runtime supports `no_std` and is demonstrated with Ariel OS and Embassy on ARM Cortex-M targets.
+
+Oneliner turns a model file into a callable Rust type with oneline code:
+
+```rust
+#[model("models/model.tflite")]
+struct MyModel;
+```
+
 
 ## Quick Start
 
-1. [Install the host model toolchain](docs/INSTALLATION.md).
+1. [Install the host model compilation toolchain](docs/Installation.md).
 2. Add the crate to your `Cargo.toml`:
 
    ```toml
@@ -72,7 +52,7 @@ Oneliner generates the input and output tensor types directly from the model. Th
 
 ## Supported Models
 
-The built-in IREE backend accepts:
+Oneliner accepts:
 
 - TFLite
 - ONNX
@@ -80,16 +60,16 @@ The built-in IREE backend accepts:
 - TensorFlow SavedModel v2 directories
 - MLIR accepted by IREE
 
-See [Model formats](docs/MODEL_FORMATS.md) for per-format guides and the
-`owned`/`shared` [memory modes](docs/MODEL_FORMATS.md#memory-modes).
+See [Model formats](docs/Model_formats.md) for per-format guides and the `owned`/`shared` [memory modes](docs/Model_formats.md#memory-modes).
 
 ## Profiling
 
-Enable the optional `profiler` feature to measure inference latency:
+Use the optional crate `oneliner-profiler` to measure inference latency:
 
 ```toml
 [dependencies]
-oneliner = { version = "0.2", features = ["profiler"] }
+oneliner = { version = "0.2" }
+oneliner-profiler = "0.1"
 ```
 
 Wrap any inference call in a profiler scope:
@@ -102,10 +82,7 @@ let output = profiler.profile(|| model.run(&input));
 println!("{}", profiler.stats());
 ```
 
-On `no_std` targets, depend on `oneliner-profiler` directly to pick the timer
-backend (Ariel OS or Embassy). In addition, every model build prints an
-automatic flash/RAM footprint report (parameters, machine code, read-only data,
-workspace) — see the profiler examples for live output.
+On `no_std` targets, depend on `oneliner-profiler` directly to pick the timer backend (Ariel OS or Embassy). In addition, every model build prints an automatic flash/RAM footprint report (parameters, machine code, read-only data, workspace) — see the profiler examples for live output.
 
 ## Examples
 
@@ -113,31 +90,19 @@ Each example is an independent Cargo project. Run its commands from the example 
 
 | Example | What it demonstrates | Active model |
 | --- | --- | --- |
-| [Desktop IREE](examples/std-iree/) | The shortest end-to-end validation path on a standard host | Quantized MCUNet visual wake word |
-| [Ariel OS + IREE](examples/ariel-os-iree/) | `no_std`, Ariel OS threads, native-board validation, and inference timing | Quantized LeNet5 |
-| [Embassy + IREE on Pico](examples/embassy-pico-iree/) | Bare-metal RP2040, shared model workspace, static input storage, and `defmt` logging | Quantized LeNet5 |
-| [Ariel OS + Profiler](examples/ariel-os-profiler/) | `no_std` latency profiling with `Profiler` and the automatic flash/RAM footprint report | Quantized LeNet5 |
-| [Embassy + Profiler on Pico](examples/embassy-pico-profiler/) | Bare-metal RP2040 latency profiling and footprint report | Quantized LeNet5 |
+| [Desktop Std](examples/std-minimal/) | The shortest end-to-end validation path on a standard host | Quantized MCUNet visual wake word |
+| [Ariel OS](examples/ariel-os-minimal/) | `no_std`, Ariel OS threads, native-board validation, and inference timing | Quantized LeNet5 and MCUNet|
+| [Embassy on Rasperry Pi Pico](examples/embassy-pico-minimal/) | Bare-metal RP2040, shared model workspace, static input storage, and `defmt` logging | Quantized LeNet5 |
+| [Ariel OS + Profiler](examples/ariel-os-profiler/) | `no_std` latency profiling with `Profiler` and the automatic flash/RAM footprint report | Quantized LeNet5 and MCUNet |
+| [Embassy on Rasperry Pi Pico + Profiler](examples/embassy-pico-profiler/) | Bare-metal RP2040 latency profiling and footprint report | Quantized LeNet5 |
 
-Start with the [desktop example](examples/std-iree/) to confirm the model toolchain, then move to the operating system or board example that matches your target.
+Start with the [desktop example](examples/std-minimal/) to confirm the model toolchain, then move to the operating system or board example that matches your target.
 
 ## Project Status
 
 Oneliner is currently at version `0.2.0`. The project focuses on making fixed-shape, single-input, single-output inference straightforward across desktop Rust and memory-constrained `no_std` targets.
 
 The examples are intentionally small and explicit. They are designed to help you validate the toolchain, understand the memory trade-offs, and replace the bundled model with your own.
-
-## Testing
-
-With the host model toolchain active, run the std end-to-end test suite from
-the repository root:
-
-```sh
-cargo test
-```
-
-This runs end-to-end inference for every model in `examples/models`, using both
-the `owned` and `shared` arena modes.
 
 ## License
 

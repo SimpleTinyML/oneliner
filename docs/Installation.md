@@ -1,7 +1,7 @@
 # Installing the host model toolchain
 
 Oneliner compiles models on your host machine during `cargo build`, so you need
-a small set of Python tools installed before the `#[model(...)]` attribute can
+a small set of Python tools installed before the `#[model(...)]` codegen can
 work.
 
 ## Prerequisites
@@ -10,10 +10,6 @@ work.
 - MSRV: 1.95
 
 ## Install the compiler packages
-
-All packages below are pinned to the exact versions verified during Oneliner
-development (in a conda environment named `ariel_ml`). All of them are stable
-releases from PyPI — no release candidates or nightly builds.
 
 The quickest way to get everything (compiler, TFLite/ONNX/PyTorch/TensorFlow
 support) is the pinned installation script, run from the repository root inside

@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
 #
 # Install the full Oneliner host model toolchain with pinned versions.
-# Run this inside the Python/conda environment you build with, e.g.:
-#
-#     conda activate ariel_ml
 #     ./install_all.sh
 #
-# See docs/INSTALLATION.md for details.
+# See docs/Installation.md for details.
 
 set -euo pipefail
 

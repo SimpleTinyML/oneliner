@@ -43,7 +43,7 @@ fn main() {
 
 ## 快速开始
 
-1. [安装宿主端模型工具链](docs/INSTALLATION.md)。
+1. [安装宿主端模型工具链](docs/Installation.md)。
 2. 在 `Cargo.toml` 中添加依赖：
 
    ```toml
@@ -80,7 +80,7 @@ Oneliner 会直接从模型生成输入和输出张量类型，应用无需重�
 - TensorFlow SavedModel v2 目录
 - IREE 接受的 MLIR
 
-各格式的使用指南以及 `owned`/`shared` [内存模式](docs/MODEL_FORMATS.md#memory-modes) 详见[模型格式说明](docs/MODEL_FORMATS.md)。
+各格式的使用指南以及 `owned`/`shared` [内存模式](docs/Model_formats.md#memory-modes) 详见[模型格式说明](docs/Model_formats.md)。
 
 ## 性能剖析
 
