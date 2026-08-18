@@ -3,7 +3,7 @@
 # Install the full Oneliner host model toolchain with pinned versions.
 #     ./install_all.sh
 #
-# See docs/Installation.md for details.
+# See docs/installation.md for details.
 
 set -euo pipefail
 
