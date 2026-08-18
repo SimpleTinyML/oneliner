@@ -48,12 +48,12 @@ syn = { version = "1", features = ["full"] }
 
 # Internal crates use an exact synchronized version for registry releases while
 # retaining paths for workspace development.
-oneliner-ariel-os-executor = { path = "oneliner-ariel-os-executor", version = "0.1.0", default-features = false }
+oneliner-ariel-os-executor = { path = "oneliner-ariel-os-executor", version = "0.2.0", default-features = false }
 oneliner-executor = { path = "oneliner-executor", version = "0.1.0", default-features = false }
 oneliner-iree-abi = { path = "oneliner-iree-abi", version = "0.1.0", default-features = false }
-oneliner-macro = { path = "oneliner-macro", version = "0.1.0" }
+oneliner-macro = { path = "oneliner-macro", version = "0.2.0" }
 oneliner-profiler = { path = "oneliner-profiler", version = "0.1.0", default-features = false }
-oneliner-runtime = { path = "oneliner-runtime", version = "0.1.0", default-features = false }
+oneliner-runtime = { path = "oneliner-runtime", version = "0.2.0", default-features = false }
 
 [workspace.lints.rustdoc]
 broken_intra_doc_links = "deny"
