@@ -1,8 +1,6 @@
 # Installing the host model toolchain
 
-Oneliner compiles models on your host machine during `cargo build`, so you need
-a small set of Python tools installed before the `#[model(...)]` codegen can
-work.
+Oneliner compiles models on your host machine during `cargo build`, so you need a small set of Python tools installed before the `#[model(...)]` codegen can work.
 
 ## Prerequisites
 
@@ -11,9 +9,7 @@ work.
 
 ## Install the compiler packages
 
-The quickest way to get everything (compiler, TFLite/ONNX/PyTorch/TensorFlow
-support) is the pinned installation script, run from the repository root inside
-your active environment:
+The quickest way to get everything (compiler, TFLite/ONNX/PyTorch/TensorFlow support) is the pinned installation script, run from the repository root inside your active environment:
 
 ```sh
 ./install_all.sh
@@ -29,8 +25,7 @@ This covers TFLite, ONNX, and MLIR models.
 
 ### TensorFlow SavedModels
 
-To compile TensorFlow SavedModels, install TensorFlow and the matching IREE
-TensorFlow tools in the same environment:
+To compile TensorFlow SavedModels, install TensorFlow and the matching IREE TensorFlow tools in the same environment:
 
 ```sh
 pip install tensorflow==2.21.0 iree-tools-tf==20250718.1326
@@ -38,9 +33,7 @@ pip install tensorflow==2.21.0 iree-tools-tf==20250718.1326
 
 ### PyTorch models
 
-To compile PyTorch models, install the CPU build of PyTorch and IREE Turbine in
-the same environment. PyTorch, Turbine, and IREE must be mutually compatible, so
-pin a working combination together for reproducible builds:
+To compile PyTorch models, install the CPU build of PyTorch and IREE Turbine in the same environment. PyTorch, Turbine, and IREE must be mutually compatible, so pin a working combination together for reproducible builds:
 
 ```sh
 pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
