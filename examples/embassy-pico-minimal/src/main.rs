@@ -10,7 +10,7 @@ use oneliner::model;
 use oneliner::runtime::{ModelInference, ModelSource};
 use static_cell::ConstStaticCell;
 
-#[model("../models/lenet5_quantized.tflite", backend = "iree", arena = "shared")]
+#[model("../models/lenet5_quantized.tflite" arena = "shared")]
 struct Model;
 const INPUT_LEN: usize = 28 * 28 * 1;
 const OUTPUT_LEN: usize = 10;

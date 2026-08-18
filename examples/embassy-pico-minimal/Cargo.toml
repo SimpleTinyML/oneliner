@@ -1,13 +1,13 @@
 [package]
 edition = "2024"
-name = "embassy-pico-iree"
+name = "embassy-pico-minimal"
 version = "0.1.0"
 authors = ["Zhaolan Huang <zhaolan94@gmail.com>"]
 resolver = "2"
 publish = false
 
 [[bin]]
-name = "embassy-pico-iree"
+name = "embassy-pico-minimal"
 test = false
 bench = false
 
