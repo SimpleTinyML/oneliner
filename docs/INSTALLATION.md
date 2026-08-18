@@ -15,6 +15,16 @@ All packages below are pinned to the exact versions verified during Oneliner
 development (in a conda environment named `ariel_ml`). All of them are stable
 releases from PyPI — no release candidates or nightly builds.
 
+The quickest way to get everything (compiler, TFLite/ONNX/PyTorch/TensorFlow
+support) is the pinned installation script, run from the repository root inside
+your active environment:
+
+```sh
+./install_all.sh
+```
+
+Or install the groups individually below.
+
 ```sh
 pip install "iree-base-compiler[onnx]==3.11.0" tosa-converter-for-tflite==2026.2.0
 ```
