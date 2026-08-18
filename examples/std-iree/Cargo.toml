@@ -5,6 +5,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
-oneliner = { path = "../../oneliner", features = ["profiler"] }
+oneliner = { path = "../../oneliner"}
+oneliner-profiler = { path = "../../oneliner-profiler"}
 log = { version = "0.4"}
 env_logger = "0.11"

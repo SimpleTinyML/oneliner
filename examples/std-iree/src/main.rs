@@ -1,7 +1,7 @@
 use log::{error, info};
 
 use oneliner::model;
-use oneliner::profiler::Profiler;
+use oneliner_profiler::Profiler;
 use oneliner::runtime::{ModelInference, ModelSource};
 
 #[model(
