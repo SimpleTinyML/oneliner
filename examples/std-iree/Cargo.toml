@@ -5,6 +5,6 @@ edition = "2024"
 publish = false
 
 [dependencies]
-oneliner = { path = "../../oneliner", default-features = false, features = ["iree-runtime", "profiler"] }
+oneliner = { path = "../../oneliner", features = ["profiler"] }
 log = { version = "0.4"}
 env_logger = "0.11"

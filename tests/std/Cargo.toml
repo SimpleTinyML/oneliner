@@ -7,8 +7,7 @@ publish = false
 [dependencies]
 oneliner = {
     path = "../../oneliner",
-    default-features = false,
-    features = ["iree-runtime", "profiler"]
+    features = ["profiler"]
 }
 # The shared arena uses critical sections when Ariel OS is not enabled. The
 # std implementation makes that synchronization path executable on the host.
