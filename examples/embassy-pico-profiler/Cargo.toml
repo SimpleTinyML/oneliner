@@ -30,7 +30,7 @@ embassy-time = { version = "0.5", features = ["defmt", "defmt-timestamp-uptime"]
 cortex-m = { version = "0.7.7" }
 embassy-rp = { version = "0.9", features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl", "rp2040"] }
 
-oneliner = { path = "../../oneliner", default-features = false, features = ["iree-runtime", ] }
+oneliner = { path = "../../oneliner"}
 oneliner-profiler = { path = "../../oneliner-profiler", default-features = false, features = ["embassy"] }
 static_cell = "2.1.1"
 portable-atomic = { version = "1", default-features = false, features = ["critical-section"] }
