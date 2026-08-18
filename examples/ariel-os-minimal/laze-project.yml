@@ -5,7 +5,7 @@ imports:
     dldir: ariel-os
 
 apps:
-  - name: oneliner-ariel-os-iree
+  - name: oneliner-ariel-os-minimal
     selects:
       - ?multi-core
       - sw/threading
