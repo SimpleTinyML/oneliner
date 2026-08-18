@@ -1,8 +1,6 @@
 # Oneliner + IREE + Profiler on Raspberry Pi Pico
 
-This example runs a Oneliner model on an RP2040 with Embassy and measures its
-inference latency with the `oneliner-profiler` crate. It is the profiler
-counterpart of the [`embassy-pico-iree`](../embassy-pico-iree/) example.
+This example runs a Oneliner model on an RP2040 with Embassy and measures its inference latency with the `oneliner-profiler` crate. It is the profiler counterpart of the [`embassy-pico-minimal`](../embassy-pico-minimal/) example.
 
 ```rust
 #[model(
@@ -24,10 +22,8 @@ let output = profiler.profile(|| model.run(&input));
 - A synchronized shared workspace to avoid per-instance model workspaces
 - Static input tensor storage to keep the large input off the task stack
 - `defmt` logging over RTT
-- Automatic flash footprint report (parameters, machine code, read-only
-  data, and total) plus RAM workspace, printed during compilation
-- Runtime latency profiling with `Profiler`, using the built-in
-  `EmbassyTimer` (chosen automatically as the default timer)
+- Automatic flash footprint report (parameters, machine code, read-only data, and total) plus RAM workspace, printed during compilation
+- Runtime latency profiling with `Profiler`, using the built-in `EmbassyTimer` (chosen automatically as the default timer)
 
 ## Active Model
 
@@ -49,7 +45,7 @@ You need:
 - a debug probe supported by `probe-rs`;
 - `probe-rs` installed on the host;
 - the stable Rust toolchain and `thumbv6m-none-eabi` target;
-- the Python/IREE toolchain from the [project README](../../README.md#1-install-the-host-model-toolchain).
+- the Python/IREE toolchain from [docs/installation.md](../../docs/installation.md).
 
 The included Rust toolchain and Cargo configuration select the RP2040 target automatically. Keep the Python virtual environment active during the build.
 
@@ -77,23 +73,13 @@ probe-rs run --chip RP2040
 
 ## Expected Behavior
 
-The application initializes the RP2040, reports model artifact sizes (input,
-output, parameters, machine code, read-only data, total flash, RAM workspace),
-fills the static input tensor, runs inference
-inside a profiled scope, and reports the latency statistics over RTT.
-`LatencyStats` implements `defmt::Format`, so the profiler statistics are
-logged directly (`samples=... avg_us=... min_us=... max_us=...`).
+The application initializes the RP2040, reports model artifact sizes (input, output, parameters, machine code, read-only data, total flash, RAM workspace), fills the static input tensor, runs inference inside a profiled scope, and reports the latency statistics over RTT. `LatencyStats` implements `defmt::Format`, so the profiler statistics are logged directly (`samples=... avg_us=... min_us=... max_us=...`).
 
-It also prints expected-versus-actual diagnostics. The bundled zero-filled
-`EXPECTED` array is a placeholder, so use output captured from trusted
-reference inference before evaluating model correctness.
+It also prints expected-versus-actual diagnostics. The bundled zero-filled `EXPECTED` array is a placeholder, so use output captured from trusted reference inference before evaluating model correctness.
 
 ## Timer Selection
 
-`Profiler::new()` picks the default timer automatically. In this example the
-`embassy` feature is enabled and `std` is disabled, so the profiler uses the
-`EmbassyTimer`. To supply a custom clock, construct a profiler with
-`Profiler::with_timer(my_timer)`.
+`Profiler::new()` picks the default timer automatically. In this example the `embassy` feature is enabled and `std` is disabled, so the profiler uses the `EmbassyTimer`. To supply a custom clock, construct a profiler with `Profiler::with_timer(my_timer)`.
 
 ## Why Shared Storage?
 
@@ -114,4 +100,4 @@ When replacing the bundled model:
 4. check the generated artifact sizes and the board's RAM/flash limits;
 5. adjust `memory.x` only if the board memory map is different.
 
-Validate a new model with the [desktop example](../std-iree/) before compiling it for RP2040.
+Validate a new model with the [desktop example](../std-minimal/) before compiling it for RP2040.

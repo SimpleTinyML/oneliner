@@ -25,19 +25,19 @@ The example currently uses `../models/lenet5_quantized.tflite`:
 - input data: every element is filled with `7.0`
 - memory mode: `owned`, the Oneliner default
 
-`EXPECTED` is currently a ten-element zero-filled placeholder. Replace it with reference output from your own validation data before using the comparison as a model-correctness test.
+`EXPECTED` is the reference output captured from trusted validation data. Replace it if you change the model or input preparation.
 
 ## Prerequisites
 
-Install the Python/IREE model toolchain described in the [project README](../../README.md#1-install-the-host-model-toolchain), and keep that environment active while building.
+Install the Python/IREE model toolchain described in [docs/installation.md](../../docs/installation.md), and keep that environment active while building.
 
 You also need:
 
-- Rust 1.94 or newer for the configured Ariel OS release
+- Rust 1.95 or newer for the configured Ariel OS release
 - [Laze](https://github.com/kas-gui/laze)
 - network access on the first build so Laze can fetch Ariel OS
 
-This example tracks Ariel OS `v0.4.0` through `laze-project.yml`.
+This example tracks Ariel OS `v0.5.0` through `laze-project.yml`.
 
 ## Build for the Native Board
 
@@ -50,7 +50,7 @@ laze build -b native
 Build and run the native application:
 
 ```sh
-laze build -b native run --bin oneliner-ariel-os-iree
+laze build -b native run --bin oneliner-ariel-os-minimal
 ```
 
 If your toolchain is stored in a Conda environment, prefix the commands with `conda run -n <environment>`.
@@ -65,8 +65,6 @@ The application:
 4. runs inference and reports elapsed microseconds;
 5. compares the result with `EXPECTED`;
 6. exits with success or failure.
-
-Because the bundled `EXPECTED` value is a placeholder, a failure exit does not by itself indicate that model compilation or dispatch failed.
 
 ## Using Shared Memory
 
@@ -95,4 +93,4 @@ Change the path in `#[model(...)]`, then update:
 - the `EXPECTED` element type and values;
 - any stack-size or memory decisions required by the new model.
 
-For the fastest first check of a new model, use the [desktop example](../std-iree/) before cross-compiling it for Ariel OS.
+For the fastest first check of a new model, use the [desktop example](../std-minimal/) before cross-compiling it for Ariel OS.

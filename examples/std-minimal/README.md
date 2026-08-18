@@ -27,7 +27,7 @@ The example uses the quantized MCUNet visual wake-word model at `../models/mcune
 
 ## Prerequisites
 
-Install the Python/IREE model toolchain described in the [project README](../../README.md#1-install-the-host-model-toolchain), then keep that virtual environment active.
+Install the Python/IREE model toolchain described in [docs/installation.md](../../docs/installation.md), then keep that environment active.
 
 You also need a current Rust toolchain with Cargo.
 
@@ -60,6 +60,6 @@ Change the model path in `src/main.rs`:
 struct Model;
 ```
 
-Oneliner also accepts ONNX and IREE-compatible MLIR. When changing models, update the input preparation and reference output to match the new model.
+Oneliner also accepts ONNX, PyTorch `ExportedProgram` (`.pt2`), TensorFlow SavedModel v2, and IREE-compatible MLIR. When changing models, update the input preparation and reference output to match the new model.
 
-Once a model works here, move the same binding to the [Ariel OS](../ariel-os-iree/) or [Embassy Pico](../embassy-pico-iree/) example.
+Once a model works here, move the same binding to the [Ariel OS](../ariel-os-minimal/) or [Embassy Pico](../embassy-pico-minimal/) example.
