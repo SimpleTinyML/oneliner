@@ -105,6 +105,7 @@ impl fmt::Display for FormatDuration {
 #[cfg(test)]
 mod tests {
     use super::*;
+    extern crate std;
 
     #[test]
     fn tracks_min_max_total_and_average() {

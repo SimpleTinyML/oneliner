@@ -26,10 +26,7 @@ ariel-os = ["oneliner-runtime/ariel-os"] # Enable Ariel OS's threading support a
 
 ndarray = ["oneliner-runtime/ndarray"]
 
-profiler = ["dep:oneliner-profiler", "oneliner-profiler/std"] # Enable oneliner::profiler with the host StdTimer. On no_std targets, depend on oneliner-profiler directly.
-
 
 [dependencies]
 oneliner-macro.workspace = true
-oneliner-profiler = { workspace = true, optional = true }
 oneliner-runtime = { workspace = true, features = ["iree-runtime"] }

@@ -16,29 +16,31 @@ pub trait Timer {
     fn elapsed(&self, start: Self::Instant) -> core::time::Duration;
 }
 
-/// Timer selected by the profiler crate's enabled features.
+/// Timer selected by default while embassy and ariel-os not enabled.
 ///
-/// Prefers the host `std` clock, then the Ariel OS clock, then the Embassy
-/// clock. [`Profiler::new`](crate::Profiler::new) uses this type so callers do
+/// [`Profiler::new`](crate::Profiler::new) uses this type so callers do
 /// not need to pick a clock explicitly.
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", not(feature = "ariel-os"), not(feature = "embassy")))]
 pub type DefaultTimer = StdTimer;
 
 /// Timer selected by the profiler crate's enabled features.
-#[cfg(all(feature = "ariel-os", not(feature = "std")))]
+#[cfg(feature = "ariel-os")]
 pub type DefaultTimer = ArielOsTimer;
 
 /// Timer selected by the profiler crate's enabled features.
-#[cfg(all(feature = "embassy", not(feature = "std"), not(feature = "ariel-os")))]
+#[cfg(feature = "embassy")]
 pub type DefaultTimer = EmbassyTimer;
 
 /// [`Timer`] backed by the host's `std::time::Instant` clock.
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", not(feature = "ariel-os"), not(feature = "embassy")))]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct StdTimer;
+#[cfg(all(feature = "std", not(feature = "ariel-os"), not(feature = "embassy")))]
+extern crate std;
 
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", not(feature = "ariel-os"), not(feature = "embassy")))]
 impl Timer for StdTimer {
+
     type Instant = std::time::Instant;
 
     fn now(&self) -> Self::Instant {

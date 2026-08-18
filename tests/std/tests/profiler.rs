@@ -1,7 +1,7 @@
 mod support;
 
 use oneliner::model;
-use oneliner::profiler::Profiler;
+use oneliner_profiler::Profiler;
 use oneliner::runtime::ModelInference;
 
 #[model("../../examples/models/abs2.mlir", backend = "iree", arena = "owned")]
