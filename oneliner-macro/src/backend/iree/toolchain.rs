@@ -47,7 +47,11 @@ pub(super) fn run_iree_compile(
         command.arg(format!("--iree-llvmcpu-target-cpu-features={features}"));
     }
     command
+        .arg("--iree-opt-level=O3")
         .arg("--iree-stream-partitioning-favor=min-peak-memory")
+        .arg("--iree-dispatch-creation-enable-aggressive-fusion=true")
+        .arg("--iree-dispatch-creation-fuse-multi-use=true")
+        .arg("--iree-dispatch-creation-enable-fuse-padding-into-linalg-consumer-ops=false")
         .arg("--iree-llvmcpu-link-embedded=false")
         .arg("--iree-llvmcpu-link-static")
         .arg(format!(
