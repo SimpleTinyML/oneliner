@@ -64,15 +64,18 @@ pub(crate) fn prepare(args: &ModelArgs, input_struct: &ItemStruct) -> syn::Resul
             let model_io = model_io::load_onnx(&path)?;
             let output = normalized_path(&struct_name, &model_stem, "tosa.mlir")?;
             generate_input_mlir::from_onnx(&path, &output)?;
+            normalize_dynamic_dims(&output)?;
             let ir_dump_stem = rust_ident(output.file_stem().and_then(OsStr::to_str).unwrap());
             (output, ir_dump_stem, model_io)
         }
         ModelFormat::Pytorch => {
             let output = normalized_path(&struct_name, &model_stem, "torch.mlir")?;
             generate_input_mlir::from_pytorch(&path, &output, &struct_name)?;
+            normalize_dynamic_dims(&output)?;
             let model_io = model_io::load_mlir(&output)?;
             (output, struct_name, model_io)
         }
+        // Dynamic shapes are rejected by `oneliner-macro/python/inspect_tensorflow_saved_model.py`.
         ModelFormat::Tensorflow => {
             let output = normalized_path(&struct_name, &model_stem, "tensorflow.mlir")?;
             let io_output = normalized_path(&struct_name, &model_stem, "tensorflow.json")?;
@@ -84,6 +87,7 @@ pub(crate) fn prepare(args: &ModelArgs, input_struct: &ItemStruct) -> syn::Resul
         ModelFormat::Tflite => {
             let output = normalized_path(&struct_name, &model_stem, "tosa.mlir")?;
             generate_input_mlir::from_tflite(&path, &output)?;
+            normalize_dynamic_dims(&output)?;
             let model_io = model_io::load_mlir(&output)?;
             let ir_dump_stem = rust_ident(output.file_stem().and_then(OsStr::to_str).unwrap());
             (output, ir_dump_stem, model_io)
@@ -97,6 +101,97 @@ pub(crate) fn prepare(args: &ModelArgs, input_struct: &ItemStruct) -> syn::Resul
         ir_dump_stem,
         model_io,
     })
+}
+
+fn normalize_dynamic_dims(path: &Path) -> syn::Result<()> {
+    let text = fs::read_to_string(path).map_err(|error| {
+        syn::Error::new(
+            Span::call_site(),
+            format!(
+                "failed to read generated MLIR from {}: {error}",
+                path.display()
+            ),
+        )
+    })?;
+    let (normalized, count) = replace_dynamic_dims(&text);
+    if count == 0 {
+        return Ok(());
+    }
+    fs::write(path, normalized).map_err(|error| {
+        syn::Error::new(
+            Span::call_site(),
+            format!("failed to rewrite generated MLIR at {}: {error}", path.display()),
+        )
+    })?;
+    eprintln!(
+        "[oneliner] warning: {} contains {count} dynamic dimension(s) <?>; replacing each with 1",
+        path.display()
+    );
+    Ok(())
+}
+
+fn replace_dynamic_dims(text: &str) -> (String, usize) {
+    let mut normalized = String::with_capacity(text.len());
+    let mut count = 0usize;
+    let mut angle_depth = 0usize;
+    let mut square_depth = 0usize;
+    let mut chars = text.char_indices().peekable();
+    while let Some((_, character)) = chars.next() {
+        match character {
+            '<' => {
+                angle_depth += 1;
+                normalized.push('<');
+            }
+            '>' => {
+                angle_depth = angle_depth.saturating_sub(1);
+                normalized.push('>');
+            }
+            '[' => {
+                square_depth += 1;
+                normalized.push('[');
+            }
+            ']' => {
+                square_depth = square_depth.saturating_sub(1);
+                normalized.push(']');
+            }
+            '?' if angle_depth > 0 || square_depth > 0 => {
+                normalized.push('1');
+                count += 1;
+            }
+            '/' if angle_depth == 0 && square_depth == 0 => {
+                if chars.peek().is_some_and(|(_, next)| *next == '/') {
+                    normalized.push_str("//");
+                    chars.next();
+                    for (_, comment_char) in chars.by_ref() {
+                        normalized.push(comment_char);
+                        if comment_char == '\n' {
+                            break;
+                        }
+                    }
+                } else {
+                    normalized.push('/');
+                }
+            }
+            '"' if angle_depth == 0 && square_depth == 0 => {
+                normalized.push('"');
+                let iter = chars.by_ref();
+                while let Some((_, string_char)) = iter.next() {
+                    normalized.push(string_char);
+                    if string_char == '\\' {
+                        if let Some((_, escaped)) = iter.next() {
+                            normalized.push(escaped);
+                        }
+                        continue;
+                    }
+                    if string_char == '"' {
+                        break;
+                    }
+                }
+            }
+            _ => normalized.push(character),
+        }
+    }
+    (normalized, count)
 }
 
 fn normalized_path(struct_name: &str, model_stem: &str, suffix: &str) -> syn::Result<PathBuf> {
