@@ -15,8 +15,8 @@ if sys.version_info < (3, 12):
 EOF
 
 echo "==> Installing compiler and model import packages (pinned)..."
+pip install --pre --find-links https://iree.dev/pip-release-links.html iree-base-compiler[onnx]==3.12.0rc20260812
 pip install \
-    "iree-base-compiler[onnx]==3.11.0" \
     "tosa-converter-for-tflite==2026.2.0" \
     "tensorflow==2.21.0" \
     "iree-tools-tf==20250718.1326" \

@@ -18,7 +18,8 @@ The quickest way to get everything (compiler, TFLite/ONNX/PyTorch/TensorFlow sup
 Or install the groups individually below.
 
 ```sh
-pip install "iree-base-compiler[onnx]==3.11.0" tosa-converter-for-tflite==2026.2.0
+pip install --pre --find-links https://iree.dev/pip-release-links.html iree-base-compiler[onnx]==3.12.0rc20260812
+pip install tosa-converter-for-tflite==2026.2.0
 ```
 
 This covers TFLite, ONNX, and MLIR models.
@@ -57,7 +58,7 @@ The following pinned combination is verified to work together:
 
 | Package | Pinned version | Purpose |
 | --- | --- | --- |
-| `iree-base-compiler[onnx]` | `3.11.0` | The IREE compiler (plus ONNX import) used for every model |
+| `iree-base-compiler[onnx]` | `3.12.0rc` | The IREE compiler (plus ONNX import) used for every model |
 | `tosa-converter-for-tflite` | `2026.2.0` | TFLite-to-TOSA import support |
 | `torch` | `2.13.0+cpu` | Exports and loads PyTorch `ExportedProgram` models |
 | `iree-turbine` | `3.9.0` | Imports PyTorch programs into IREE-compatible MLIR |
