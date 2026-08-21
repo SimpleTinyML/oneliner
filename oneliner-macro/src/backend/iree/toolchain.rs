@@ -78,7 +78,7 @@ pub(super) fn run_converter(
         .arg(
             PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .join("python")
-                .join("iree_stream_flow_to_rust_using_re.py"),
+                .join("iree_stream_flow_to_rust.py"),
         )
         .arg(input)
         .arg("--rust-output")

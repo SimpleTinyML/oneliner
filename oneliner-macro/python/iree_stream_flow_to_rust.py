@@ -2,8 +2,9 @@
 """
 Extract IREE Stream command execution blocks and render Rust call flows.
 
-This version intentionally uses regex-based MLIR text matching plus balanced
-delimiter scanning. It does not require IREE Python bindings.
+The command graph is parsed with IREE's MLIR Python bindings. Text tokenization
+is limited to opaque composite constant attributes whose payloads are not
+exposed by the bindings.
 """
 
 from __future__ import annotations
@@ -17,8 +18,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from iree.compiler import ir
+from iree.compiler.dialects import cf, hal, stream, util
 
-SSA_RE = r"%[A-Za-z_.$-][\w.$-]*(?:#\d+)?|%\d+"
+
 RUST_KEYWORDS = {
     "as", "async", "await", "break", "const", "continue", "crate", "dyn",
     "else", "enum", "extern", "false", "fn", "for", "gen", "if", "impl",
@@ -193,29 +196,6 @@ def split_balanced_items(text: str, separator: str = ",") -> list[str]:
     return items
 
 
-def line_number(text: str, offset: int) -> int:
-    return text.count("\n", 0, offset) + 1
-
-
-def parse_integer_constants(text: str) -> dict[str, int]:
-    constants: dict[str, int] = {}
-    pattern = re.compile(
-        rf"(?P<name>{SSA_RE})\s*=\s*arith\.constant\s+(?P<value>-?\d+)\s*:\s*(?:index|i\d+)\b"
-    )
-    for match in pattern.finditer(text):
-        constants[match.group("name")] = int(match.group("value"))
-    return constants
-
-
-def resolve_int(expr: str, constants: dict[str, int]) -> int | None:
-    expr = expr.strip()
-    if expr in constants:
-        return constants[expr]
-    if re.fullmatch(r"-?\d+", expr):
-        return int(expr)
-    return None
-
-
 def parse_tensor_type(type_text: str) -> tuple[int, str] | None:
     match = re.search(r"(?:tensor|vector)<(?P<body>[^>]+)>", type_text.strip())
     if not match:
@@ -370,82 +350,25 @@ def parse_composite_constants(text: str) -> dict[str, ConstantBlob]:
     return constants
 
 
-def parse_constant_sources(text: str, constants: dict[str, ConstantBlob]) -> dict[str, str]:
-    alias_to_constant = {blob.source: name for name, blob in constants.items()}
-    buffer_to_constant: dict[str, str] = {}
-    resource_to_constant: dict[str, str] = {}
-    global_to_constant: dict[str, str] = {}
-    load_to_constant: dict[str, str] = {}
-
-    buffer_pattern = re.compile(
-        rf"(?P<value>{SSA_RE})\s*=\s*util\.buffer\.constant\b.*?=\s*(?P<alias>#[\w.$-]+)",
-        re.DOTALL,
-    )
-    for match in buffer_pattern.finditer(text):
-        const_name = alias_to_constant.get(match.group("alias"))
-        if const_name:
-            buffer_to_constant[match.group("value")] = const_name
-
-    try_map_pattern = re.compile(
-        rf"(?P<results>{SSA_RE}(?:\s*,\s*{SSA_RE})*)\s*=\s*stream\.resource\.try_map\b.*?"
-        rf"(?P<buffer>{SSA_RE})\s*\[.*?\].*?!util\.buffer\s*->\s*i1\s*,\s*!stream\.resource<constant>",
-        re.DOTALL,
-    )
-    for match in try_map_pattern.finditer(text):
-        const_name = buffer_to_constant.get(match.group("buffer"))
-        if not const_name:
+def parse_composite_attribute_names(
+    text: str, constants: dict[str, ConstantBlob]
+) -> dict[str, str]:
+    names: dict[str, str] = {}
+    pattern = re.compile(r"(?P<alias>#[\w.$-]+)\s*=\s*#util\.composite")
+    for match in pattern.finditer(text):
+        constant_name = f"constant_{rust_ident(match.group('alias'))}"
+        if constant_name not in constants:
             continue
-        for result in re.findall(SSA_RE, match.group("results")):
-            resource_to_constant[result] = const_name
-
-    await_pattern = re.compile(
-        rf"(?P<result>{SSA_RE})\s*=\s*stream\.timepoint\.await\b.*?=>\s*(?P<src>{SSA_RE})\s*:"
-        r"\s*!stream\.resource<constant>",
-        re.DOTALL,
-    )
-    for match in await_pattern.finditer(text):
-        const_name = resource_to_constant.get(match.group("src"))
-        if const_name:
-            resource_to_constant[match.group("result")] = const_name
-
-    store_pattern = re.compile(
-        rf"util\.global\.store\s+(?P<src>{SSA_RE})\s*,\s*(?P<global>@[\w.$-]+)\s*:"
-        r"\s*!stream\.resource<constant>"
-    )
-    for match in store_pattern.finditer(text):
-        const_name = resource_to_constant.get(match.group("src"))
-        if const_name:
-            global_to_constant[match.group("global")] = const_name
-
-    if len(constants) == 1:
-        only_constant = next(iter(constants))
-        for match in re.finditer(r"util\.global\s+private\s+(?P<global>@[\w.$-]+)\s*:\s*!stream\.resource<constant>", text):
-            global_to_constant.setdefault(match.group("global"), only_constant)
-
-    load_pattern = re.compile(
-        rf"(?P<value>{SSA_RE})\s*=\s*util\.global\.load\s+immutable\s+(?P<global>@[\w.$-]+)\s*:"
-        r"\s*!stream\.resource<constant>"
-    )
-    for match in load_pattern.finditer(text):
-        const_name = global_to_constant.get(match.group("global"))
-        if const_name:
-            load_to_constant[match.group("value")] = const_name
-    return load_to_constant
-
-
-def parse_resource_roles(text: str) -> dict[str, str]:
-    roles: dict[str, str] = {}
-    for match in re.finditer(rf"(?P<value>{SSA_RE})\s*=\s*stream\.tensor\.import\b", text):
-        roles[match.group("value")] = "input"
-    alloca_pattern = re.compile(
-        rf"(?P<results>{SSA_RE}(?:\s*,\s*{SSA_RE})*)\s*=\s*stream\.resource\.alloca\b.*?"
-        r"!stream\.resource<(?P<kind>external|transient)>",
-        re.DOTALL,
-    )
-    for match in alloca_pattern.finditer(text):
-        first_result = re.findall(SSA_RE, match.group("results"))[0]
-        roles[first_result] = "temporary" if match.group("kind") == "transient" else "output"
-    return roles
+        marker = text.find("#util.composite", match.start())
+        open_pos = text.find("<", marker)
+        close_pos = find_matching(text, open_pos, "<", ">")
+        # Parsing in the module's context uniquifies already-registered
+        # dense_resource names, so canonicalize each alias in a fresh context.
+        attribute = ir.Attribute.parse(
+            text[marker : close_pos + 1], context=ir.Context()
+        )
+        names[str(attribute)] = constant_name
+    return names
 
 
 def binding_name(binding: ResourceBinding) -> str:
@@ -460,183 +383,6 @@ def binding_name(binding: ResourceBinding) -> str:
     if binding.role == "constant":
         return f"const_{rust_ident(binding.arg)}"
     return f"{rust_ident(binding.role)}_{rust_ident(binding.arg)}"
-
-
-def parse_with_bindings(
-    with_text: str,
-    constants: dict[str, int],
-    roles: dict[str, str],
-    constant_by_value: dict[str, str],
-) -> tuple[list[ResourceBinding], dict[str, ResourceBinding]]:
-    bindings: list[ResourceBinding] = []
-    by_arg: dict[str, ResourceBinding] = {}
-    pattern = re.compile(
-        rf"(?P<src>{SSA_RE})\s+as\s+(?P<arg>{SSA_RE})\s*:\s*"
-        r"!stream\.resource<(?P<kind>[^>]+)>\{(?P<size>[^}]+)\}"
-    )
-    for item in split_balanced_items(with_text):
-        match = pattern.search(item)
-        if not match:
-            continue
-        source = match.group("src")
-        kind = match.group("kind")
-        role = roles.get(source, kind)
-        if kind == "constant":
-            role = "constant"
-        elif kind == "transient":
-            role = "temporary"
-        binding = ResourceBinding(
-            arg=match.group("arg"),
-            source=source,
-            kind=kind,
-            size_expr=match.group("size").strip(),
-            size=resolve_int(match.group("size"), constants),
-            role=role,
-            constant_name=constant_by_value.get(source),
-        )
-        bindings.append(binding)
-        by_arg[binding.arg] = binding
-    return bindings, by_arg
-
-
-def split_symbol_ref(symbol: str) -> tuple[str, str]:
-    parts = [part.lstrip("@") for part in symbol.split("::")]
-    if len(parts) == 1:
-        return "", parts[0]
-    return parts[0], parts[-1]
-
-
-def parse_params(param_text: str, constants: dict[str, int]) -> tuple[list[str], list[int | None]]:
-    if not param_text.strip():
-        return [], []
-    value_part = param_text.rsplit(":", 1)[0] if ":" in param_text else param_text
-    params = [item.strip() for item in split_balanced_items(value_part) if item.strip()]
-    return params, [resolve_int(param, constants) for param in params]
-
-
-def parse_ranges(range_text: str, constants: dict[str, int]) -> list[TensorRange]:
-    ranges: list[TensorRange] = []
-    range_pattern = re.compile(
-        rf"(?P<access>ro|wo|rw)\s+(?P<arg>{SSA_RE})"
-        r"\[(?P<offset>.*?)\s+for\s+(?P<length>.*?)\]\s*:\s*"
-        r"!stream\.resource<(?P<kind>[^>]+)>\{(?P<size>[^}]+)\}",
-        re.DOTALL,
-    )
-    for item in split_balanced_items(range_text):
-        match = range_pattern.search(item)
-        if not match:
-            continue
-        offset_expr = match.group("offset").strip()
-        length_expr = match.group("length").strip()
-        ranges.append(
-            TensorRange(
-                access=match.group("access"),
-                arg=match.group("arg"),
-                kind=match.group("kind"),
-                tensor_name="",
-                offset_expr=offset_expr,
-                offset=resolve_int(offset_expr, constants),
-                length_expr=length_expr,
-                length=resolve_int(length_expr, constants),
-            )
-        )
-    return ranges
-
-
-def parse_dispatch(head: str, body: str, constants: dict[str, int], func_workloads) -> DispatchCall:
-    match = re.search(r"stream\.cmd\.dispatch\s+(?P<callee>@[\w$]+(::@[\w$]+)*)(?P<tail>.*)", head, re.DOTALL)
-    if not match:
-        raise StreamExtractionError(f"could not parse dispatch head: {head.strip()}")
-    callee = match.group("callee").strip()
-    tail = match.group("tail").strip()
-    params: list[str] = []
-    param_values: list[int | None] = []
-    if tail.startswith("("):
-        close_pos = find_matching(tail, 0, "(", ")")
-        params, param_values = parse_params(tail[1:close_pos], constants)
-    executable, function = split_symbol_ref(callee)
-    workload = tuple()
-    ordinal = (
-        int(re.sub(r".*_dispatch_", "", executable))
-    )
-    for item in func_workloads:
-        if item["function"] == function:
-            workload = item["workload"]
-            break
-
-    return DispatchCall(
-        kind="dispatch",
-        callee=callee,
-        executable=executable,
-        function=function,
-        ordinal=ordinal,
-        params=params,
-        param_values=param_values,
-        ranges=parse_ranges(body, constants),
-        workload=workload,
-    )
-
-
-def parse_fill(fill_text: str, constants: dict[str, int]) -> FillCommand:
-    pattern = re.compile(
-        rf"stream\.cmd\.fill\s+(?P<value>{SSA_RE}|-?\d+)\s*,\s*(?P<arg>{SSA_RE})"
-        r"\[(?P<offset>.*?)\s+for\s+(?P<length>.*?)\]\s*:\s*"
-        r"(?P<value_type>.*?)\s*->\s*!stream\.resource<(?P<kind>[^>]+)>\{(?P<size>[^}]+)\}",
-        re.DOTALL,
-    )
-    match = pattern.search(fill_text)
-    if not match:
-        raise StreamExtractionError(f"could not parse fill command: {fill_text.strip()[:120]}")
-    value_expr = match.group("value").strip()
-    offset_expr = match.group("offset").strip()
-    length_expr = match.group("length").strip()
-    return FillCommand(
-        kind="fill",
-        value_expr=value_expr,
-        value=resolve_int(value_expr, constants),
-        value_type=match.group("value_type").strip(),
-        target=TensorRange(
-            access="wo",
-            arg=match.group("arg"),
-            kind=match.group("kind"),
-            tensor_name="",
-            offset_expr=offset_expr,
-            offset=resolve_int(offset_expr, constants),
-            length_expr=length_expr,
-            length=resolve_int(length_expr, constants),
-        ),
-    )
-
-
-def parse_commands(body: str, constants: dict[str, int], func_workloads) -> list[Any]:
-    commands: list[Any] = []
-    pattern = re.compile(r"stream\.cmd\.(dispatch|fill|concurrent)\b")
-    pos = 0
-    while True:
-        match = pattern.search(body, pos)
-        if not match:
-            break
-        kind = match.group(1)
-        if kind == "concurrent":
-            open_pos = body.find("{", match.end())
-            close_pos = find_matching(body, open_pos, "{", "}")
-            commands.append(ConcurrentCommand(kind="concurrent", commands=parse_commands(body[open_pos + 1 : close_pos], constants, func_workloads)))
-            pos = close_pos + 1
-        elif kind == "dispatch":
-            open_pos = body.find("{", match.end())
-            close_pos = find_matching(body, open_pos, "{", "}")
-            commands.append(parse_dispatch(body[match.start() : open_pos], body[open_pos + 1 : close_pos], constants, func_workloads))
-            pos = close_pos + 1
-        else:
-            fill_match = re.compile(
-                rf"stream\.cmd\.fill\s+.*?->\s*!stream\.resource<[^>]+>\{{[^}}]+\}}",
-                re.DOTALL,
-            ).match(body, match.start())
-            if not fill_match:
-                raise StreamExtractionError("could not find end of stream.cmd.fill")
-            commands.append(parse_fill(fill_match.group(0), constants))
-            pos = fill_match.end()
-    return commands
 
 
 def command_ranges(command: Any) -> list[TensorRange]:
@@ -659,7 +405,7 @@ def infer_external_roles(bindings: list[ResourceBinding], commands: list[Any]) -
             access_by_arg.setdefault(item.arg, set()).add(item.access)
 
     for binding in bindings:
-        if binding.kind != "external":
+        if binding.kind != "external" or binding.role != "external":
             continue
         accesses = access_by_arg.get(binding.arg, set())
         has_read = bool(accesses & {"ro", "rw"})
@@ -680,120 +426,494 @@ def apply_tensor_names(command: Any, bindings_by_arg: dict[str, ResourceBinding]
         item.tensor_name = binding_name(binding)
 
 
-def parse_func_workloads(mlir_text: str):
-    results = []
+def value_name(value: ir.Value) -> str:
+    return value.get_name()
 
-    # Find all executable export blocks.
-    export_pattern = re.compile(
-        r'hal\.executable\.export\s+public\s+@([^\s(]+)(?P<head>[^{]*)\{',
-        re.MULTILINE
-    )
 
-    for match in export_pattern.finditer(mlir_text):
-        func_name = match.group(1)
-        start_idx = match.end() - 1  # Points at the opening brace.
-
-        # Use brace counting to find the full export body.
-        brace_count = 0
-        i = start_idx
-        while i < len(mlir_text):
-            if mlir_text[i] == '{':
-                brace_count += 1
-            elif mlir_text[i] == '}':
-                brace_count -= 1
-                if brace_count == 0:
-                    break
-            i += 1
-
-        func_body = mlir_text[start_idx:i+1]
-
-        # Extract local integer constants.
-        const_pattern = re.compile(
-            rf"({SSA_RE})\s*=\s*arith\.constant\s+(-?\d+)\s*:\s*index"
+def resource_kind(value: ir.Value) -> str:
+    type_name = str(value.type)
+    prefix = "!stream.resource<"
+    if not type_name.startswith(prefix) or not type_name.endswith(">"):
+        raise StreamExtractionError(
+            f"expected a stream resource, got {type_name} for {value_name(value)}"
         )
-        const_map = {
-            var: int(val)
-            for var, val in const_pattern.findall(func_body)
-        }
+    return type_name[len(prefix) : -1]
 
-        # Extract the workload returned by the export.
-        return_pattern = re.compile(
-            r'hal\.return\s+([^:]+)\s*:\s*((?:index\s*,\s*)*index)'
+
+def resolve_ir_int(value: ir.Value) -> int | None:
+    if not isinstance(value, ir.OpResult):
+        return None
+    owner = value.owner
+    if owner.name != "arith.constant" or "value" not in owner.attributes:
+        return None
+    try:
+        return ir.IntegerAttr(owner.attributes["value"]).value
+    except ValueError:
+        return None
+
+
+def source_line(operation: ir.Operation) -> int | None:
+    location = operation.location
+    return location.start_line if isinstance(location, ir.FileLineColLoc) else None
+
+
+@dataclasses.dataclass(frozen=True)
+class ExecutableExport:
+    symbol_path: tuple[str, ...]
+    ordinal: int
+    local_ordinal: int
+    workload: tuple[int | None, ...]
+
+
+class StructuredStreamParser:
+    def __init__(self, text: str):
+        self.context = ir.Context()
+        try:
+            self.module = ir.Module.parse(text, context=self.context)
+        except ir.MLIRError as exc:
+            raise StreamExtractionError(f"invalid IREE MLIR: {exc}") from exc
+        self.constant_blobs = parse_composite_constants(text)
+        self.constant_by_attribute = parse_composite_attribute_names(
+            text, self.constant_blobs
         )
-        return_match = return_pattern.search(func_body)
+        self.block_argument_sources = self._find_block_argument_sources()
+        self.constant_by_value = self._find_constant_values()
+        self.exports = self._find_exports()
 
-        workload = tuple()
-        if return_match:
-            vars_ = [v.strip() for v in return_match.group(1).split(',')]
-            workload = tuple(resolve_int(v, const_map) for v in vars_)
+    def _find_block_argument_sources(self) -> dict[ir.Value, list[ir.Value]]:
+        sources: dict[ir.Value, list[ir.Value]] = {}
 
-        results.append({
-            "function": func_name,
-            "workload": workload
-        })
-    return results
+        def add_branch(operands, successor: ir.Block) -> None:
+            for source, argument in zip(operands, successor.arguments, strict=True):
+                sources.setdefault(argument, []).append(source)
 
+        for operation in ir.get_ops_of_type(self.module, cf.BranchOp):
+            add_branch(operation.destOperands, operation.successors[0])
+        for operation in ir.get_ops_of_type(self.module, cf.CondBranchOp):
+            add_branch(operation.trueDestOperands, operation.successors[0])
+            add_branch(operation.falseDestOperands, operation.successors[1])
+        return sources
 
-def iter_dispatches(commands: list[Any]) -> Any:
-    for command in commands:
-        if isinstance(command, DispatchCall):
-            yield command
-        elif isinstance(command, ConcurrentCommand):
-            yield from iter_dispatches(command.commands)
+    def _find_constant_values(self) -> dict[ir.Value, str]:
+        by_value: dict[ir.Value, str] = {}
 
-def normalize_dispatch_ordinals(commands: list[Any]) -> None:
-    sorted_ordinals = sorted({command.ordinal for command in iter_dispatches(commands)})
-    ordinal_map = {ordinal: index for index, ordinal in enumerate(sorted_ordinals)}
-    for command in iter_dispatches(commands):
-        command.ordinal = ordinal_map[command.ordinal]
+        def assign(value: ir.Value, constant_name: str) -> bool:
+            existing = by_value.get(value)
+            if existing is not None and existing != constant_name:
+                raise StreamExtractionError(
+                    f"ambiguous constant provenance for {value_name(value)}"
+                )
+            if existing is not None:
+                return False
+            by_value[value] = constant_name
+            return True
+
+        for operation in ir.get_ops_of_type(self.module, util.BufferConstantOp):
+            constant_name = self.constant_by_attribute.get(str(operation.value))
+            if constant_name is not None:
+                assign(operation.result, constant_name)
+
+        for operation in ir.get_ops_of_type(self.module, stream.ResourceTryMapOp):
+            constant_name = by_value.get(operation.source)
+            if constant_name is not None:
+                assign(operation.result, constant_name)
+
+        # File loads, awaits, and control flow preserve resource identity.
+        # Iterate to account for joins and chains in generated initializers.
+        changed = True
+        while changed:
+            changed = False
+            for operation in ir.get_ops_of_type(self.module, stream.FileConstantOp):
+                constant_name = by_value.get(operation.source)
+                if constant_name is not None:
+                    changed |= assign(operation.result, constant_name)
+            for operation in ir.get_ops_of_type(self.module, stream.FileReadOp):
+                constant_name = by_value.get(operation.source)
+                if constant_name is not None:
+                    changed |= assign(operation.target, constant_name)
+            for argument, sources in self.block_argument_sources.items():
+                constant_names = [by_value.get(source) for source in sources]
+                if not constant_names or any(name is None for name in constant_names):
+                    continue
+                first_name = constant_names[0]
+                if any(name != first_name for name in constant_names[1:]):
+                    raise StreamExtractionError(
+                        f"ambiguous constant provenance for {value_name(argument)}"
+                    )
+                changed |= assign(argument, first_name)
+            for operation in ir.get_ops_of_type(self.module, stream.TimepointAwaitOp):
+                for source, result in zip(
+                    operation.resource_operands, operation.results_, strict=True
+                ):
+                    constant_name = by_value.get(source)
+                    if constant_name is not None:
+                        changed |= assign(result, constant_name)
+
+        stores_by_global: dict[str, list[ir.Value]] = {}
+        for operation in ir.get_ops_of_type(self.module, util.GlobalStoreOp):
+            stores_by_global.setdefault(operation.global_.value, []).append(operation.value)
+        constant_by_global: dict[str, str] = {}
+        for global_name, values in stores_by_global.items():
+            constant_names = [by_value.get(value) for value in values]
+            if not constant_names or any(name is None for name in constant_names):
+                continue
+            first_name = constant_names[0]
+            if any(name != first_name for name in constant_names[1:]):
+                raise StreamExtractionError(
+                    f"ambiguous constant stores to @{global_name}"
+                )
+            constant_by_global[global_name] = first_name
+        for operation in ir.get_ops_of_type(self.module, util.GlobalLoadOp):
+            constant_name = constant_by_global.get(operation.global_.value)
+            if constant_name is not None:
+                assign(operation.result, constant_name)
+        return by_value
+
+    def _find_exports(self) -> dict[tuple[str, ...], ExecutableExport]:
+        pending: list[tuple[tuple[str, ...], int, tuple[int | None, ...]]] = []
+        seen_paths: set[tuple[str, ...]] = set()
+        for operation in ir.get_ops_of_type(self.module, hal.ExecutableExportOp):
+            path = self._export_path(operation)
+            if path in seen_paths:
+                raise StreamExtractionError(
+                    f"duplicate executable export {'::'.join(path)}"
+                )
+            seen_paths.add(path)
+            if operation.ordinal is None:
+                raise StreamExtractionError(
+                    f"executable export {'::'.join(path)} has no ordinal"
+                )
+            if len(operation.workgroup_count.blocks) != 1:
+                raise StreamExtractionError(
+                    f"executable export {'::'.join(path)} must have one count block"
+                )
+            block = operation.workgroup_count.blocks[0]
+            block_operations = list(block.operations)
+            if not block_operations:
+                raise StreamExtractionError(
+                    f"executable export {'::'.join(path)} has an empty count block"
+                )
+            terminator = block_operations[-1]
+            if terminator.operation.name != "hal.return":
+                raise StreamExtractionError(
+                    f"executable export {'::'.join(path)} has no hal.return workload"
+                )
+            pending.append(
+                (
+                    path,
+                    operation.ordinal.value,
+                    tuple(resolve_ir_int(value) for value in terminator.operands),
+                )
+            )
+
+        # IREE's static linked library concatenates each executable's local
+        # export table in module order. The runtime consumes this flattened
+        # ordinal, not the variant-local hal.executable.export ordinal.
+        groups: dict[
+            tuple[str, ...],
+            list[tuple[tuple[str, ...], int, tuple[int | None, ...]]],
+        ] = {}
+        for item in pending:
+            path = item[0]
+            if len(path) < 3:
+                raise StreamExtractionError(
+                    f"executable export {'::'.join(path)} has no variant scope"
+                )
+            groups.setdefault(path[:-2], []).append(item)
+
+        exports: dict[tuple[str, ...], ExecutableExport] = {}
+        base_ordinal = 0
+        for executable_path, items in groups.items():
+            local_ordinals = sorted(item[1] for item in items)
+            if local_ordinals != list(range(len(items))):
+                raise StreamExtractionError(
+                    "executable "
+                    f"{'::'.join(executable_path)} has non-contiguous or duplicate ordinals"
+                )
+            for path, local_ordinal, workload in items:
+                exports[path] = ExecutableExport(
+                    symbol_path=path,
+                    ordinal=base_ordinal + local_ordinal,
+                    local_ordinal=local_ordinal,
+                    workload=workload,
+                )
+            base_ordinal += len(items)
+        return exports
+
+    @staticmethod
+    def _export_path(operation: hal.ExecutableExportOp) -> tuple[str, ...]:
+        path = [operation.sym_name.value]
+        parent = operation.operation.parent
+        while parent is not None:
+            attributes = parent.attributes
+            if "sym_name" in attributes:
+                path.append(ir.StringAttr(attributes["sym_name"]).value)
+            parent = parent.parent
+        path.reverse()
+        return tuple(path)
+
+    @staticmethod
+    def _module_scope(operation: ir.Operation) -> tuple[str, ...]:
+        scope: list[str] = []
+        parent = operation.parent
+        while parent is not None:
+            if parent.name == "builtin.module" and "sym_name" in parent.attributes:
+                scope.append(ir.StringAttr(parent.attributes["sym_name"]).value)
+            parent = parent.parent
+        scope.reverse()
+        return tuple(scope)
+
+    def _lookup_export(
+        self, symbol_path: tuple[str, ...], operation: ir.Operation
+    ) -> ExecutableExport:
+        scoped_path = self._module_scope(operation) + symbol_path
+        export = self.exports.get(scoped_path)
+        if export is not None:
+            return export
+        rendered = "::".join(f"@{part}" for part in symbol_path)
+        raise StreamExtractionError(f"executable export {rendered} was not found")
+
+    def _source_role(
+        self, source: ir.Value, kind: str, seen: set[ir.Value] | None = None
+    ) -> tuple[str, str | None]:
+        constant_name = self.constant_by_value.get(source)
+        if constant_name is not None:
+            return "constant", constant_name
+        if kind == "constant":
+            return "constant", None
+        if kind == "transient":
+            return "temporary", None
+        if isinstance(source, ir.BlockArgument):
+            incoming = self.block_argument_sources.get(source)
+            if incoming:
+                seen = set() if seen is None else seen
+                if source in seen:
+                    raise StreamExtractionError(
+                        f"cyclic resource provenance for {value_name(source)}"
+                    )
+                seen.add(source)
+                roles = [self._source_role(value, kind, seen) for value in incoming]
+                seen.remove(source)
+                if any(role != roles[0] for role in roles[1:]):
+                    raise StreamExtractionError(
+                        f"ambiguous resource provenance for {value_name(source)}"
+                    )
+                return roles[0]
+        if not isinstance(source, ir.OpResult):
+            return kind, None
+        owner = source.owner
+        if owner.name == "stream.tensor.import":
+            return "input", None
+        if owner.name == "stream.resource.alloca":
+            return "output" if kind == "external" else "temporary", None
+        if owner.name == "stream.timepoint.await":
+            await_op = owner.opview
+            source_index = source.result_number
+            if source_index < len(await_op.resource_operands):
+                return self._source_role(
+                    await_op.resource_operands[source_index], kind, seen
+                )
+        return kind, None
+
+    def _parse_execute(self, operation: stream.CmdExecuteOp, index: int) -> CmdExecute:
+        if len(operation.body.blocks) != 1:
+            raise StreamExtractionError("stream.cmd.execute must contain one block")
+        block = operation.body.blocks[0]
+        sources = list(operation.resource_operands)
+        sizes = list(operation.resource_operand_sizes)
+        arguments = list(block.arguments)
+        if not (len(sources) == len(sizes) == len(arguments)):
+            raise StreamExtractionError(
+                "stream.cmd.execute resource operands, sizes, and block arguments differ"
+            )
+
+        bindings: list[ResourceBinding] = []
+        bindings_by_arg: dict[str, ResourceBinding] = {}
+        for source, size, argument in zip(sources, sizes, arguments, strict=True):
+            kind = resource_kind(argument)
+            role, constant_name = self._source_role(source, kind)
+            resolved_size = resolve_ir_int(size)
+            if resolved_size is None:
+                raise StreamExtractionError(
+                    f"dynamic resource size {value_name(size)} is unsupported"
+                )
+            binding = ResourceBinding(
+                arg=value_name(argument),
+                source=value_name(source),
+                kind=kind,
+                size_expr=value_name(size),
+                size=resolved_size,
+                role=role,
+                constant_name=constant_name,
+            )
+            bindings.append(binding)
+            bindings_by_arg[binding.arg] = binding
+
+        commands = self._parse_command_block(block)
+        infer_external_roles(bindings, commands)
+        unsupported_roles = [
+            binding
+            for binding in bindings
+            if binding.role not in {"constant", "temporary", "input", "output"}
+        ]
+        if unsupported_roles:
+            rendered = ", ".join(
+                f"{binding.arg} ({binding.role})" for binding in unsupported_roles
+            )
+            raise StreamExtractionError(f"unsupported resource roles: {rendered}")
+        for command in commands:
+            apply_tensor_names(command, bindings_by_arg)
+        return CmdExecute(
+            name=f"cmd_execute_{index}",
+            result=value_name(operation.result_timepoint),
+            line_no=source_line(operation.operation),
+            resources=bindings,
+            commands=commands,
+        )
+
+    def _parse_command_block(self, block: ir.Block) -> list[Any]:
+        commands: list[Any] = []
+        for operation in block.operations:
+            name = operation.operation.name
+            if name == "stream.yield":
+                continue
+            if name == "stream.cmd.dispatch":
+                commands.append(self._parse_dispatch(operation))
+            elif name == "stream.cmd.fill":
+                commands.append(self._parse_fill(operation))
+            elif name == "stream.cmd.concurrent":
+                if len(operation.body.blocks) != 1:
+                    raise StreamExtractionError(
+                        "stream.cmd.concurrent must contain one block"
+                    )
+                commands.append(
+                    ConcurrentCommand(
+                        kind="concurrent",
+                        commands=self._parse_command_block(operation.body.blocks[0]),
+                    )
+                )
+            elif name.startswith("stream.cmd."):
+                raise StreamExtractionError(f"unsupported command operation {name}")
+            else:
+                raise StreamExtractionError(
+                    f"unexpected operation {name} in stream command block"
+                )
+        return commands
+
+    def _parse_dispatch(self, operation: stream.CmdDispatchOp) -> DispatchCall:
+        if len(operation.entry_points) != 1:
+            raise StreamExtractionError(
+                "dispatches with multiple executable entry points are unsupported"
+            )
+        symbol_path = tuple(operation.entry_points[0].value)
+        export = self._lookup_export(symbol_path, operation.operation)
+        if len(export.workload) != 3 or any(
+            value is None for value in export.workload
+        ):
+            raise StreamExtractionError(
+                f"dispatch workload for {'::'.join(symbol_path)} is not static 3D"
+            )
+        resources = list(operation.resources)
+        offsets = list(operation.resource_offsets)
+        lengths = list(operation.resource_lengths)
+        accesses = list(operation.resource_accesses)
+        if not (len(resources) == len(offsets) == len(lengths) == len(accesses)):
+            raise StreamExtractionError("dispatch resource ranges have inconsistent lengths")
+
+        ranges: list[TensorRange] = []
+        access_names = {1: "ro", 2: "wo", 3: "rw"}
+        for resource, offset, length, access in zip(
+            resources, offsets, lengths, accesses, strict=True
+        ):
+            access_value = ir.IntegerAttr(access).value
+            if access_value not in access_names:
+                raise StreamExtractionError(
+                    f"unsupported resource access flag {access_value}"
+                )
+            resolved_offset = resolve_ir_int(offset)
+            resolved_length = resolve_ir_int(length)
+            if resolved_offset is None or resolved_length is None:
+                raise StreamExtractionError(
+                    "dynamic resource range "
+                    f"{value_name(offset)} for {value_name(length)} is unsupported"
+                )
+            ranges.append(
+                TensorRange(
+                    access=access_names[access_value],
+                    arg=value_name(resource),
+                    kind=resource_kind(resource),
+                    tensor_name="",
+                    offset_expr=value_name(offset),
+                    offset=resolved_offset,
+                    length_expr=value_name(length),
+                    length=resolved_length,
+                )
+            )
+
+        params = [value_name(value) for value in operation.uniform_operands]
+        param_values = [resolve_ir_int(value) for value in operation.uniform_operands]
+        if any(value is None for value in param_values):
+            raise StreamExtractionError(
+                f"dynamic dispatch uniforms for {'::'.join(symbol_path)} are unsupported"
+            )
+        return DispatchCall(
+            kind="dispatch",
+            callee="::".join(f"@{part}" for part in symbol_path),
+            executable=symbol_path[0],
+            function=symbol_path[-1],
+            ordinal=export.ordinal,
+            params=params,
+            param_values=param_values,
+            ranges=ranges,
+            workload=export.workload,
+        )
+
+    def _parse_fill(self, operation: stream.CmdFillOp) -> FillCommand:
+        value = operation.value
+        target = operation.target
+        offset = operation.target_offset
+        length = operation.target_length
+        resolved_value = resolve_ir_int(value)
+        resolved_offset = resolve_ir_int(offset)
+        resolved_length = resolve_ir_int(length)
+        if resolved_value is None:
+            raise StreamExtractionError(
+                f"dynamic fill value {value_name(value)} is unsupported"
+            )
+        if resolved_offset is None or resolved_length is None:
+            raise StreamExtractionError(
+                "dynamic fill range "
+                f"{value_name(offset)} for {value_name(length)} is unsupported"
+            )
+        return FillCommand(
+            kind="fill",
+            value_expr=value_name(value),
+            value=resolved_value,
+            value_type=str(value.type),
+            target=TensorRange(
+                access="wo",
+                arg=value_name(target),
+                kind=resource_kind(target),
+                tensor_name="",
+                offset_expr=value_name(offset),
+                offset=resolved_offset,
+                length_expr=value_name(length),
+                length=resolved_length,
+            ),
+        )
+
+    def parse(self) -> tuple[list[CmdExecute], dict[str, ConstantBlob]]:
+        executes = [
+            self._parse_execute(operation, index)
+            for index, operation in enumerate(
+                ir.get_ops_of_type(self.module, stream.CmdExecuteOp)
+            )
+        ]
+        return executes, self.constant_blobs
 
 
 def parse_cmd_executes(text: str) -> tuple[list[CmdExecute], dict[str, ConstantBlob]]:
-    constants = parse_integer_constants(text)
-    constant_blobs = parse_composite_constants(text)
-    constant_by_value = parse_constant_sources(text, constant_blobs)
-    roles = parse_resource_roles(text)
-    func_workloads = parse_func_workloads(text)
-    executes: list[CmdExecute] = []
-
-    execute_pattern = re.compile(rf"(?:(?P<result>{SSA_RE})\s*=\s*)?stream\.cmd\.execute\b")
-    search_from = 0
-    while True:
-        match = execute_pattern.search(text, search_from)
-        if not match:
-            break
-        with_pos = text.find("with(", match.end())
-        if with_pos < 0:
-            search_from = match.end()
-            continue
-        with_open = with_pos + len("with")
-        with_close = find_matching(text, with_open, "(", ")")
-        body_open = text.find("{", with_close)
-        if body_open < 0:
-            search_from = with_close + 1
-            continue
-        body_close = find_matching(text, body_open, "{", "}")
-
-        bindings, bindings_by_arg = parse_with_bindings(text[with_open + 1 : with_close], constants, roles, constant_by_value)
-        commands = parse_commands(text[body_open + 1 : body_close], constants, func_workloads)
-        infer_external_roles(bindings, commands)
-        for command in commands:
-            apply_tensor_names(command, bindings_by_arg)
-
-        normalize_dispatch_ordinals(commands)
-
-        executes.append(
-            CmdExecute(
-                name=f"cmd_execute_{len(executes)}",
-                result=match.group("result"),
-                line_no=line_number(text, match.start()),
-                resources=bindings,
-                commands=commands,
-            )
-        )
-        search_from = body_close + 1
-
-    return executes, constant_blobs
+    return StructuredStreamParser(text).parse()
 
 
 def bytes_to_rust_array(data: bytes, indent: str = "    ", per_line: int = 16) -> list[str]:
@@ -915,8 +1035,8 @@ def render_command(
 
 def render_rust(executes: list[CmdExecute], constant_blobs: dict[str, ConstantBlob]) -> str:
     out: list[str] = [
-        "// Generated by iree_stream_flow_to_rust_using_re.py",
-        "// MLIR was matched with regex plus balanced delimiter scanning.",
+        "// Generated by iree_stream_flow_to_rust.py",
+        "// Command flow was extracted with IREE's structured MLIR bindings.",
         "",
     ]
 
@@ -1037,7 +1157,7 @@ def render_metadata_json(executes: list[CmdExecute]) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Regex-match IREE Stream MLIR and emit Rust dispatch flow.")
+    parser = argparse.ArgumentParser(description="Parse IREE Stream MLIR and emit Rust dispatch flow.")
     parser.add_argument("input", type=Path, help="Input .mlir file")
     parser.add_argument("-o", "--output", type=Path, help="Output file, defaults to stdout")
     parser.add_argument("--format", choices=("rust", "json"), default="rust")
