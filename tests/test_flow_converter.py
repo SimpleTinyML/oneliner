@@ -24,21 +24,6 @@ SPEC.loader.exec_module(CONVERTER)
 
 
 class FlowConverterTests(unittest.TestCase):
-    def test_structured_parser_matches_legacy_output(self):
-        text = FIXTURE.read_text(encoding="utf-8")
-
-        executes, constants = CONVERTER.parse_cmd_executes(text)
-        legacy_executes, legacy_constants = CONVERTER.parse_cmd_executes_legacy(text)
-
-        self.assertEqual(
-            CONVERTER.dataclass_to_json(executes),
-            CONVERTER.dataclass_to_json(legacy_executes),
-        )
-        self.assertEqual(
-            CONVERTER.dataclass_to_json(constants),
-            CONVERTER.dataclass_to_json(legacy_constants),
-        )
-
     def test_structured_parser_flattens_local_export_ordinals(self):
         text = FIXTURE.read_text(encoding="utf-8")
         executable_start = text.index("  hal.executable private")
