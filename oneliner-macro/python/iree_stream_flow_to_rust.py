@@ -33,6 +33,7 @@ RUST_KEYWORDS = {
 
 @dataclasses.dataclass
 class ConstantBlob:
+    """Materialized constant bytes, their declared size, and source attribute."""
     name: str
     size: int
     data: bytes
@@ -41,6 +42,7 @@ class ConstantBlob:
 
 @dataclasses.dataclass
 class ResourceBinding:
+    """A command resource and its byte size, provenance and storage role."""
     arg: str
     source: str
     kind: str
@@ -52,6 +54,7 @@ class ResourceBinding:
 
 @dataclasses.dataclass
 class TensorRange:
+    """A byte offset/length with access permissions for a resource binding."""
     access: str
     arg: str
     kind: str
@@ -64,6 +67,7 @@ class TensorRange:
 
 @dataclasses.dataclass
 class DispatchCall:
+    """Resolved export ordinal, constant uniforms, 3D workload and buffer ranges."""
     kind: str
     callee: str
     executable: str
@@ -77,6 +81,7 @@ class DispatchCall:
 
 @dataclasses.dataclass
 class FillCommand:
+    """A constant fill command targeting a byte range."""
     kind: str
     value_expr: str
     value: int | None
@@ -86,12 +91,14 @@ class FillCommand:
 
 @dataclasses.dataclass
 class ConcurrentCommand:
+    """A nested command group; the Rust runtime currently executes it sequentially."""
     kind: str
     commands: list[Any]
 
 
 @dataclasses.dataclass
 class CmdExecute:
+    """One ordered command block with the resources needed to execute it."""
     name: str
     result: str | None
     line_no: int | None
@@ -100,6 +107,7 @@ class CmdExecute:
 
 
 class StreamExtractionError(RuntimeError):
+    """Unsupported or inconsistent input that cannot be safely rendered."""
     pass
 
 
@@ -329,6 +337,7 @@ def composite_to_bytes(
 
 
 def parse_composite_constants(text: str) -> dict[str, ConstantBlob]:
+    """Materialize opaque composite constants that the MLIR bindings do not expose."""
     constants: dict[str, ConstantBlob] = {}
     dense_resources = parse_dense_resources(text)
     pattern = re.compile(r"(?P<alias>#[\w.$-]+)\s*=\s*#util\.composite")
@@ -399,6 +408,7 @@ def command_ranges(command: Any) -> list[TensorRange]:
 
 
 def infer_external_roles(bindings: list[ResourceBinding], commands: list[Any]) -> None:
+    """Classify otherwise unresolved external bindings from observed access modes."""
     access_by_arg: dict[str, set[str]] = {}
     for command in commands:
         for item in command_ranges(command):
@@ -459,6 +469,7 @@ def source_line(operation: ir.Operation) -> int | None:
 
 @dataclasses.dataclass(frozen=True)
 class ExecutableExport:
+    """Scoped export name plus linked-library and executable-local ordinals."""
     symbol_path: tuple[str, ...]
     ordinal: int
     local_ordinal: int
@@ -466,6 +477,7 @@ class ExecutableExport:
 
 
 class StructuredStreamParser:
+    """Parse Stream/Flow operations with IREE bindings and track resource provenance."""
     def __init__(self, text: str):
         self.context = ir.Context()
         try:
@@ -481,6 +493,7 @@ class StructuredStreamParser:
         self.exports = self._find_exports()
 
     def _find_block_argument_sources(self) -> dict[ir.Value, list[ir.Value]]:
+        """Collect incoming SSA values for branch arguments to follow storage identity."""
         sources: dict[ir.Value, list[ir.Value]] = {}
 
         def add_branch(operands, successor: ir.Block) -> None:
@@ -495,6 +508,7 @@ class StructuredStreamParser:
         return sources
 
     def _find_constant_values(self) -> dict[ir.Value, str]:
+        """Propagate constant identity through initialization; reject ambiguous provenance."""
         by_value: dict[ir.Value, str] = {}
 
         def assign(value: ir.Value, constant_name: str) -> bool:
@@ -570,6 +584,7 @@ class StructuredStreamParser:
         return by_value
 
     def _find_exports(self) -> dict[tuple[str, ...], ExecutableExport]:
+        """Map scoped exports to flattened linked-library ordinals and constant workloads."""
         pending: list[tuple[tuple[str, ...], int, tuple[int | None, ...]]] = []
         seen_paths: set[tuple[str, ...]] = set()
         for operation in ir.get_ops_of_type(self.module, hal.ExecutableExportOp):
@@ -676,6 +691,7 @@ class StructuredStreamParser:
     def _source_role(
         self, source: ir.Value, kind: str, seen: set[ir.Value] | None = None
     ) -> tuple[str, str | None]:
+        """Resolve input/output/temporary/constant storage, rejecting ambiguous joins."""
         constant_name = self.constant_by_value.get(source)
         if constant_name is not None:
             return "constant", constant_name
@@ -716,6 +732,7 @@ class StructuredStreamParser:
         return kind, None
 
     def _parse_execute(self, operation: stream.CmdExecuteOp, index: int) -> CmdExecute:
+        """Validate one command block and resolve static resource sizes and roles."""
         if len(operation.body.blocks) != 1:
             raise StreamExtractionError("stream.cmd.execute must contain one block")
         block = operation.body.blocks[0]
@@ -772,6 +789,7 @@ class StructuredStreamParser:
         )
 
     def _parse_command_block(self, block: ir.Block) -> list[Any]:
+        """Accept dispatch, fill and nested concurrent groups; reject other operations."""
         commands: list[Any] = []
         for operation in block.operations:
             name = operation.operation.name
@@ -801,6 +819,7 @@ class StructuredStreamParser:
         return commands
 
     def _parse_dispatch(self, operation: stream.CmdDispatchOp) -> DispatchCall:
+        """Resolve one export, static three-dimensional workload, uniforms and byte ranges."""
         if len(operation.entry_points) != 1:
             raise StreamExtractionError(
                 "dispatches with multiple executable entry points are unsupported"
@@ -869,6 +888,7 @@ class StructuredStreamParser:
         )
 
     def _parse_fill(self, operation: stream.CmdFillOp) -> FillCommand:
+        """Resolve a constant fill value and static target byte range."""
         value = operation.value
         target = operation.target
         offset = operation.target_offset
@@ -913,6 +933,7 @@ class StructuredStreamParser:
 
 
 def parse_cmd_executes(text: str) -> tuple[list[CmdExecute], dict[str, ConstantBlob]]:
+    """Return ordered execution blocks and materialized constants from an IREE phase dump."""
     return StructuredStreamParser(text).parse()
 
 
@@ -925,6 +946,7 @@ def bytes_to_rust_array(data: bytes, indent: str = "    ", per_line: int = 16) -
 
 
 def render_resource_static(binding: ResourceBinding, constant_blobs: dict[str, ConstantBlob]) -> list[str]:
+    """Emit aligned constant storage; mutable resources belong in Workspace."""
     name = const_ident(binding_name(binding))
     if binding.role != "constant":
         raise StreamExtractionError(f"mutable resource {binding.arg} must be stored in Workspace")
@@ -938,6 +960,7 @@ def render_resource_static(binding: ResourceBinding, constant_blobs: dict[str, C
 
 
 def render_workspace_field(binding: ResourceBinding) -> str:
+    """Emit an aligned field for one temporary byte payload."""
     name = const_ident(binding_name(binding))
     if binding.role != "temporary":
         raise StreamExtractionError(
@@ -952,6 +975,7 @@ def render_workspace_field(binding: ResourceBinding) -> str:
 
 
 def render_workspace_initializer(binding: ResourceBinding) -> str:
+    """Zero-initialize a temporary workspace field of known byte length."""
     name = const_ident(binding_name(binding))
     if binding.role != "temporary":
         raise StreamExtractionError(
@@ -969,6 +993,7 @@ def render_tensor_range(
     workspace_names: frozenset[str] = frozenset(),
     external_roles: dict[str, str] | None = None,
 ) -> str:
+    """Reference workspace, input, output or constant storage without copying it."""
     access = {"ro": "Ro", "wo": "Wo", "rw": "Rw"}.get(item.access, "Unknown")
     if item.offset is None or item.length is None:
         raise StreamExtractionError(
@@ -998,6 +1023,7 @@ def render_command(
     workspace_names: frozenset[str] = frozenset(),
     external_roles: dict[str, str] | None = None,
 ) -> list[str]:
+    """Emit synchronous runtime calls in source order; propagate dispatch/fill errors."""
     out: list[str] = []
     if isinstance(command, DispatchCall):
         if (
@@ -1008,6 +1034,7 @@ def render_command(
             raise StreamExtractionError(f"unresolved dispatch values for {command.callee}")
         params = ", ".join(str(value) for value in command.param_values)
         workload = ", ".join(str(value) for value in command.workload)
+        out.append(f"{indent}// Storage must remain live and satisfy the compiled kernel ranges.")
         out.append(f"{indent}unsafe {{")
         out.append(
             f"{indent}    try_dispatch(dispatch_fn_from_library(QUERY_FN_PTR, {command.ordinal})?, &[{params}], &[{workload}], &["
@@ -1034,6 +1061,7 @@ def render_command(
     return out
 
 def render_rust(executes: list[CmdExecute], constant_blobs: dict[str, ConstantBlob]) -> str:
+    """Emit deduplicated storage and execution functions from validated command records."""
     out: list[str] = [
         "// Generated by iree_stream_flow_to_rust.py",
         "// Command flow was extracted with IREE's structured MLIR bindings.",
@@ -1074,12 +1102,14 @@ def render_rust(executes: list[CmdExecute], constant_blobs: dict[str, ConstantBl
         out.extend(render_resource_static(binding, constant_blobs))
         out.append("")
 
+    out.append("/// Aligned temporary storage shared by the generated command blocks.")
     out.append("pub struct Workspace {")
     for binding in workspace_bindings:
         out.append(f"    {render_workspace_field(binding)}")
     out.append("}")
     out.append("")
     out.append("impl Workspace {")
+    out.append("    /// Creates zero-filled temporary storage.")
     out.append("    pub const fn new() -> Self {")
     out.append("        Self {")
     for binding in workspace_bindings:
@@ -1096,6 +1126,7 @@ def render_rust(executes: list[CmdExecute], constant_blobs: dict[str, ConstantBl
     out.append("")
 
     for execute in executes:
+        out.append("/// Runs one generated command block synchronously.")
         out.append(
             f"pub fn {rust_ident(execute.name)}("
             "workspace: &mut Workspace, input: Buffer, output: BufferMut) "
@@ -1135,6 +1166,7 @@ def dataclass_to_json(value: Any) -> Any:
 
 
 def render_metadata_json(executes: list[CmdExecute]) -> str:
+    """Emit schema-version-1 metadata consumed by the Rust backend, including byte sizes."""
     document = {
         "schema_version": 1,
         "cmd_executes": [
@@ -1157,6 +1189,7 @@ def render_metadata_json(executes: list[CmdExecute]) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Read a phase dump and write Rust/JSON artifacts; report extraction failures with status 2."""
     parser = argparse.ArgumentParser(description="Parse IREE Stream MLIR and emit Rust dispatch flow.")
     parser.add_argument("input", type=Path, help="Input .mlir file")
     parser.add_argument("-o", "--output", type=Path, help="Output file, defaults to stdout")

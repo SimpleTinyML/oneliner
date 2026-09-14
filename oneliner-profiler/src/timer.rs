@@ -1,9 +1,13 @@
+//! Feature-selected clocks.
+
 /// Source of timestamps used to measure inference latency.
 ///
 /// The trait keeps profiling usable on `no_std` targets: implementors read a
 /// hardware or OS clock and convert the measured interval into a
 /// [`core::time::Duration`]. Provide your own implementation to profile with a
 /// custom clock.
+/// Implementations are responsible for tick conversion, resolution and wraparound
+/// handling. `elapsed` must use the same clock domain as `now`.
 pub trait Timer {
     /// A snapshot of the timer's clock.
     type Instant: Copy + core::fmt::Debug;
@@ -16,7 +20,7 @@ pub trait Timer {
     fn elapsed(&self, start: Self::Instant) -> core::time::Duration;
 }
 
-/// Timer selected by default while embassy and ariel-os not enabled.
+/// Host timer selected by `std` when neither embedded timer feature is enabled.
 ///
 /// [`Profiler::new`](crate::Profiler::new) uses this type so callers do
 /// not need to pick a clock explicitly.

@@ -1,10 +1,17 @@
+//! Workspace ownership and platform synchronization.
+
 #[cfg(feature = "alloc")]
 use alloc::boxed::Box;
 
 use core::cell::UnsafeCell;
 use core::mem::MaybeUninit;
 
-/// Instance-owned model arena storage selected by the Oneliner `alloc` feature.
+/// Per-instance workspace; placed in a box with the `alloc` feature.
+///
+/// The workspace is independent of other instances. Boxing requires an
+/// global allocator; constructing a large value can still use temporary
+/// stack space before it is moved into the box.
+
 pub struct OwnedArena<T> {
     #[cfg(not(feature = "alloc"))]
     inner: T,
@@ -33,7 +40,7 @@ impl<T: Default> Default for OwnedArena<T> {
     }
 }
 
-/// Only stores the large arena value.
+/// Holds static workspace storage accessed through a shared arena guard.
 ///
 /// If `value` is all-zero, this object can be placed in `.bss`.
 pub struct ArenaStorage<T> {
@@ -41,6 +48,7 @@ pub struct ArenaStorage<T> {
 }
 
 impl<T> ArenaStorage<T> {
+    /// Wraps an initialized workspace without allocating or acquiring a lock.
     pub const fn new(value: T) -> Self {
         Self {
             val: UnsafeCell::new(value),
@@ -51,7 +59,7 @@ impl<T> ArenaStorage<T> {
 // Access is synchronized by the corresponding SharedArena.
 unsafe impl<T: Send> Sync for ArenaStorage<T> {}
 
-/// Synchronizes access to an arena shared by every instance of one model type.
+/// Uses an Ariel OS lock to serialize access to static workspace.
 #[cfg(feature = "ariel-os")]
 pub struct SharedArena<T: 'static> {
     storage: &'static ArenaStorage<T>,
@@ -67,6 +75,12 @@ impl<T: 'static> SharedArena<T> {
         }
     }
 
+    /// Borrows the workspace while holding the guard.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a panic from the closure. Recursive access panics with the
+    /// critical-section implementation; recursive Ariel OS locking is not supported.
     pub fn with<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
         self.lock.acquire();
 
@@ -77,6 +91,11 @@ impl<T: 'static> SharedArena<T> {
     }
 }
 
+/// Runs a closure inside a platform critical section over a static workspace.
+///
+/// The application must provide a `critical-section` implementation appropriate
+/// for its interrupt and multicore environment. The critical section covers the
+/// entire closure, which can affect interrupt latency.
 #[cfg(not(feature = "ariel-os"))]
 pub struct SharedArena<T: 'static> {
     storage: &'static ArenaStorage<T>,
@@ -92,6 +111,12 @@ impl<T: 'static> SharedArena<T> {
         }
     }
 
+    /// Borrows the workspace while holding the platform guard.
+    ///
+    /// # Panics
+    ///
+    /// Propagates a panic from the closure. Recursive access panics with the
+    /// critical-section implementation.
     pub fn with<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
         critical_section::with(|cs| {
             // Keep this guard alive for the entire closure.

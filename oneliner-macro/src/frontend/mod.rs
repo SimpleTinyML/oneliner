@@ -1,3 +1,5 @@
+//! Oneliner frontend for model import.
+
 mod generate_input_mlir;
 mod model_io;
 
@@ -103,6 +105,11 @@ pub(crate) fn prepare(args: &ModelArgs, input_struct: &ItemStruct) -> syn::Resul
     })
 }
 
+/// Rewrites dynamic dimension markers to one on the selected import paths.
+///
+/// This existing textual specialization is not general dynamic-shape support.
+/// TensorFlow's inspector and PyTorch export validation reject their respective
+/// dynamic signatures earlier. Keep these format-dependent behaviors explicit.
 fn normalize_dynamic_dims(path: &Path) -> syn::Result<()> {
     let text = fs::read_to_string(path).map_err(|error| {
         syn::Error::new(

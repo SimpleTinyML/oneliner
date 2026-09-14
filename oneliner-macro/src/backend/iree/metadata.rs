@@ -1,3 +1,5 @@
+//! Read converter metadata and count unique constant/temporary resource payloads.
+
 use std::{fs, path::Path};
 
 use proc_macro2::Span;
@@ -12,9 +14,9 @@ pub(super) struct FlowMetadata {
     pub execute_fns: Vec<Ident>,
     pub input: Option<BindingArtifact>,
     pub output: BindingArtifact,
-    /// Deduplicated constant/weight bytes placed in flash.
+    /// Constant/weight bytes placed in flash.
     pub params_size: usize,
-    /// Deduplicated transient workspace bytes held in RAM.
+    /// Model RAM workspace size in bytes, excluding possible padding.
     pub ram_size: usize,
 }
 
@@ -89,7 +91,9 @@ pub(super) fn load_metadata(path: &Path) -> syn::Result<FlowMetadata> {
 /// Sums constant and transient resource sizes, counting each storage blob once.
 ///
 /// A constant or temporary shared by several `cmd_execute` blocks is rendered
-/// as a single Rust static, so it must contribute to the footprint only once.
+/// once in the generated storage (a constant static or a workspace field), so
+/// its payload contributes once. Alignment padding and input/output tensors
+/// are excluded.
 fn footprint_sizes<'a>(resources: impl Iterator<Item = &'a Resource>) -> (usize, usize) {
     let mut params_size = 0usize;
     let mut ram_size = 0usize;

@@ -1,3 +1,5 @@
+//! Model format-specific importers and the SavedModel signature inspector.
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 

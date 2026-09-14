@@ -5,7 +5,6 @@ use oneliner::runtime::{ModelArtifacts, ModelSource};
 pub fn assert_artifacts<M: ModelSource>(model_name: &str) {
     let ModelArtifacts {
         backend,
-        expansion,
         model_path,
         compile_input_path,
         object_path,
@@ -23,10 +22,6 @@ pub fn assert_artifacts<M: ModelSource>(model_name: &str) {
     } = M::ARTIFACTS;
 
     assert_eq!(backend, "iree", "{model_name}: unexpected backend");
-    assert_eq!(
-        expansion, "static-flow",
-        "{model_name}: unexpected expansion"
-    );
     assert!(input_size > 0, "{model_name}: empty input binding");
     assert!(output_size > 0, "{model_name}: empty output binding");
     // Footprints may be zero for models without weights or scratch buffers

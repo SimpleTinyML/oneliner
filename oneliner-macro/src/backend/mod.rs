@@ -1,3 +1,7 @@
+//! Route validated frontend models to the selected compilation backend.
+//! 
+//! Currently IREE only.
+
 mod iree;
 mod llvm_target_info;
 

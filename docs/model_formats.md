@@ -1,6 +1,6 @@
 # Model formats
 
-The built-in IREE backend accepts TFLite, ONNX, PyTorch `ExportedProgram`, and TensorFlow SavedModel v2 models. Model paths are resolved relative to the application's `Cargo.toml`.
+The Oneliner's frontend accepts TFLite, ONNX, PyTorch `ExportedProgram`, and TensorFlow SavedModel v2 models. Model paths are resolved relative to the application's `Cargo.toml`.
 
 The generated `ModelInference` API currently targets fixed-shape models with:
 
@@ -47,3 +47,9 @@ struct MyModel;
 The model must expose a `main` method with a `serving_default` signature, and the directory must contain `saved_model.pb`. TensorFlow, `iree-tools-tf`, and `iree-base-compiler` should be pinned to mutually compatible versions.
 
 See [Memory model](memory_model.md) for the `owned`/`shared` workspace modes.
+
+## Dynamic shapes and dimensions
+
+Oneliner currently only supports fix shapes and dimensions. PyTorch and TensorFlow exported programm with dynamic shapes or dimensions are rejected earlier. Shapes with fewer than four dimensions are padded with leading dimensions of one; axis order is otherwise retained. The tensor API itself does not convert between NCHW and NHWC.
+
+

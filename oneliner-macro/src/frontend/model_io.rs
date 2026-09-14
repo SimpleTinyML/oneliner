@@ -1,3 +1,5 @@
+//! Read and parse format-specific input/output metadata.
+
 mod mlir;
 mod mlir_tensor;
 mod onnx;

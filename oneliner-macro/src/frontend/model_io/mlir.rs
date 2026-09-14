@@ -1,3 +1,5 @@
+//! Find the entry function and extract its input/output tensor signature from textual MLIR.
+
 use std::{fs, path::Path};
 
 use super::error;
