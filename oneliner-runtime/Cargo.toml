@@ -33,3 +33,6 @@ oneliner-ariel-os-executor = { workspace = true, optional = true, features = ["e
 oneliner-executor.workspace = true
 oneliner-iree-abi.workspace = true
 portable-atomic.workspace = true
+
+[package.metadata.docs.rs]
+features = ["alloc", "ndarray"]

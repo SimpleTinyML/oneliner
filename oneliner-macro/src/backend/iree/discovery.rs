@@ -1,3 +1,5 @@
+//! Read the compiler-generated query symbol while preserving its native link name.
+
 use std::fs;
 use std::path::Path;
 

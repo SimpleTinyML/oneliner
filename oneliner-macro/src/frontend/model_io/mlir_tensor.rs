@@ -1,3 +1,5 @@
+//! Parse supported MLIR tensor types.
+
 use std::path::Path;
 
 use super::error;

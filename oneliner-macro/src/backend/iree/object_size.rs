@@ -1,3 +1,5 @@
+//! Measure ELF object sections.
+
 use std::fs;
 use std::path::Path;
 

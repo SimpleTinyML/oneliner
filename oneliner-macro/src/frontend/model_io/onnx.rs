@@ -1,3 +1,5 @@
+//! Extract the input/output signature from an ONNX model.
+
 use std::path::Path;
 
 use onnx_extractor::{DataType, Model, Tensor};

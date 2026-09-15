@@ -38,7 +38,8 @@ println!("{}", profiler.stats());
 | `min` / `max` | Shortest / longest recorded duration (`Option<Duration>`) |
 | `average()` | Mean duration, `None` until at least one sample exists |
 | `min_micros()` / `max_micros()` / `average_micros()` | Convenience accessors in microseconds |
-| `reset()` | Clears all accumulated statistics |
+| `Profiler::reset_stats()` | Clears the profiler's accumulated statistics |
+| `LatencyStats::reset()` | Clears a separately owned statistics value |
 
 `LatencyStats` is `Copy` and keeps only a counter plus running total, min, and max — cheap enough for `no_std` firmware. It prints through `core::fmt::Display` (`samples=… avg=… min=… max=…`, with automatic us/ms/s units) and implements `defmt::Format` for embedded logging.
 
@@ -94,7 +95,7 @@ Each size field is a byte count:
 | `code_size` | Executable machine code of the compiled model (`.text` sections of the IREE object file), placed in flash. |
 | `rodata_size` | Read-only data embedded in the compiled object — lookup tables, library metadata, and `.ARM.exidx` unwind tables (`.rodata`, `.data.rel.ro`) — placed in flash. |
 | `total_flash_size` | Total model flash footprint: `params_size + code_size + rodata_size`. |
-| `ram_size` | Model's arena workspace held in RAM during inference. |
+| `ram_size` | Deduplicated temporary payload bytes; excludes alignment, tensors and stacks. |
 | `input_size` | Size in bytes of the model's single input tensor. |
 | `output_size` | Size in bytes of the model's single output tensor. |
 
@@ -104,3 +105,9 @@ Each size field is a byte count:
 
 - [`ariel-os-profiler`](../examples/ariel-os-profiler/) — latency profiling and footprint logging on `no_std` Ariel OS.
 - [`embassy-pico-profiler`](../examples/embassy-pico-profiler/) — the same on bare-metal RP2040 with Embassy.
+
+## Measurement boundaries
+
+The reported object-section and resource sizes are model-only estimates before final linking. They omit linker padding, runtime/application code, allocator metadata and OS memory. Use a final linker map and stack measurements for a complete firmware budget.
+
+The timing scope includes any preparation, waiting or logging inside its closure. Put warm-up outside the measured interval when comparing steady-state runs. Statistics contain no sample history or percentiles; microsecond helpers truncate smaller units and return zero when there are no samples. A call that unwinds is not recorded. At least one timer feature is currently required even when constructing a profiler with a custom timer.

@@ -1,3 +1,5 @@
+//! Timing benchmark with aggregate statistics.
+
 use crate::stats::LatencyStats;
 use crate::timer::{DefaultTimer, Timer};
 
@@ -43,6 +45,13 @@ impl<T: Timer> Profiler<T> {
     /// This is the Rust counterpart of the `with prof:` block: the profiled
     /// work is whatever the closure performs, including any direct
     /// `ModelInference::run` call.
+    ///
+    /// Timing includes waiting or preemption inside `f`. The interval ends
+    /// before updating statistics. A closure that unwinds is not recorded.
+    ///
+    /// # Panics
+    ///
+    /// Propagates panics from the closure, timer or statistics update.
     pub fn profile<R>(&mut self, f: impl FnOnce() -> R) -> R {
         let start = self.timer.now();
         let result = f();

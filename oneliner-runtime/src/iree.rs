@@ -1,3 +1,5 @@
+//! Dispatch native IREE executable workloads.
+
 use core::ffi::c_void;
 
 // TODO: logging switching.
@@ -21,6 +23,7 @@ pub use oneliner_iree_abi::{
     iree_hal_executable_workgroup_state_v0_t, iree_hal_processor_v0_t, DispatchFn,
 };
 
+/// Maximum number of binding descriptors held on the dispatcher's stack.
 pub const MAX_BINDINGS: usize = 32;
 
 /// Resolves an export ordinal from an IREE static library.
@@ -29,6 +32,14 @@ pub const MAX_BINDINGS: usize = 32;
 ///
 /// `query` must return a valid IREE v0 executable library for the duration of
 /// the call, including a valid export pointer table.
+/// The returned function and its code/data must remain valid for every later
+/// invocation. This function does not load, retain or comprehensively validate
+/// a library, nor does it populate imports or specialization constants.
+///
+/// # Errors
+///
+/// Returns [`Error::MissingDispatchFunction`] when the query returns null, the
+/// ordinal is out of bounds, or the export pointer table is null.
 pub unsafe fn dispatch_fn_from_library(
     query: iree_hal_executable_library_query_fn_t,
     ordinal: usize,
@@ -60,6 +71,10 @@ pub unsafe fn dispatch_fn_from_library(
 ///
 /// `function` and every buffer range must satisfy the same requirements as
 /// [`try_dispatch`].
+///
+/// # Panics
+///
+/// Panics if dispatch returns an error.
 pub unsafe fn dispatch(
     function: DispatchFn,
     params: &[u32],
@@ -75,6 +90,13 @@ pub unsafe fn dispatch(
 ///
 /// `function` must be a valid IREE dispatch function. Every buffer pointer must
 /// remain valid for its declared range until all scheduled work completes.
+/// Alignment, access and aliasing must meet [`try_dispatch_with_executor`]'s
+/// contract. In particular, descriptor bounds alone do not prove validity.
+///
+/// # Errors
+///
+/// Forwards validation and backend status errors from
+/// [`try_dispatch_with_executor`].
 pub unsafe fn try_dispatch(
     function: DispatchFn,
     params: &[u32],
@@ -92,6 +114,20 @@ pub unsafe fn try_dispatch(
 /// `function` must be a valid IREE dispatch function. Every buffer pointer must
 /// remain valid for its declared range until the executor has completed all
 /// submitted work.
+/// Parallel workgroups must not introduce conflicting accesses. The executor
+/// must execute submitted items and establish completion before returning from
+/// its barrier.
+///
+/// `params` contains constant words. The first three `workload`
+/// entries are x/y/z counts; missing dimensions default to one, and later
+/// entries are ignored. Zero counts submit no work in that dimension.
+///
+/// # Errors
+///
+/// Returns errors for more than 32 bindings, an unrepresentable constant count
+/// or z count, or a nonzero workgroup status. Range allocation validity is a
+/// caller obligation and is not checked here. Failure does not roll back
+/// writes from workgroups that have already run.
 pub unsafe fn try_dispatch_with_executor<E>(
     executor: &mut E,
     function: DispatchFn,
@@ -119,6 +155,8 @@ where
         }
     })?;
 
+    // Stack-owned ABI arrays survive every scheduled workgroup because the
+    // completion barrier below runs before this function returns.
     let mut binding_ptrs = [core::ptr::null_mut(); MAX_BINDINGS];
     let mut binding_lengths = [0usize; MAX_BINDINGS];
     for (index, range) in ranges.iter().enumerate() {
@@ -187,6 +225,7 @@ where
             }
         }
     }
+    // The executor contract makes borrowed stack state safe to release here.
     executor.wait_job_completion();
     let status = dispatch_status.load(Ordering::Acquire);
     if status != 0 {

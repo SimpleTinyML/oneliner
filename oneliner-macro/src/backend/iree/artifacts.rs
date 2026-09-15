@@ -1,3 +1,5 @@
+//! Compile model into executable library and generate low-level MLIR's for rust codegen.
+
 use std::ffi::OsStr;
 use std::fs;
 use std::path::PathBuf;
@@ -13,6 +15,11 @@ use super::{ArtifactPaths, BindingArtifact, IreeArtifacts};
 use crate::frontend::{Model, TensorInfo};
 use crate::utils::{required_path_env, rust_ident};
 
+/// Compiles model and generate low-level MLIR
+///
+/// `OUT_DIR` is preferred for artifacts output; otherwise artifacts go below the caller's
+/// `target/oneliner`. The phase-dump suffix is coupled to the supported IREE
+/// compiler. Frontend tensor byte counts must agree with converter bindings.
 pub(super) fn build(struct_ident: &Ident, model: Model) -> syn::Result<IreeArtifacts> {
     let Model {
         source_path: model_path,

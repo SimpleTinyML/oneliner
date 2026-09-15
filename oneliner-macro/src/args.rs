@@ -1,3 +1,5 @@
+//! Parse the `model` attribute.
+
 use syn::spanned::Spanned;
 use syn::{AttributeArgs, Lit, LitStr, Meta, NestedMeta};
 
@@ -112,7 +114,7 @@ fn parse_format(lit: Lit) -> syn::Result<ModelFormat> {
 /// Parses a backend string literal into a known backend selector.
 ///
 /// Input: `backend = "..."` literal.
-/// Output: `Ok(())` for IREE or a `syn::Error` for unsupported names.
+/// Returns the IREE selector or a diagnostic for an unsupported name.
 fn parse_backend(lit: Lit) -> syn::Result<BackendArg> {
     let value = match lit {
         Lit::Str(value) => value,

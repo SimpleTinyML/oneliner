@@ -1,3 +1,5 @@
+//! Invoke host tools to compile model and convert low-level dispatch MLIR into Rust code.
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -68,6 +70,7 @@ pub(super) fn run_iree_compile(
     run_command(&mut command, "iree-compile")
 }
 
+/// Converts the selected compiler-phase MLIR dump into Rust ops dispatch code and JSON metadata.
 pub(super) fn run_converter(
     input: &Path,
     rust_output: &Path,

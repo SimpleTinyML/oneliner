@@ -1,3 +1,5 @@
+//! Main entry of IREE compilation and codegen.
+
 mod artifacts;
 mod codegen;
 mod discovery;

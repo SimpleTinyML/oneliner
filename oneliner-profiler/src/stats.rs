@@ -1,3 +1,5 @@
+//! Aggregate latency measurements and display formatting.
+
 use core::fmt;
 use core::time::Duration;
 

@@ -27,6 +27,7 @@ def package_version(distribution: str) -> str:
 
 
 def tensor_metadata(tensor: Any, label: str) -> dict[str, Any]:
+    """Validate an element type and fixed rank up to four, padding leading axes with one."""
     dtype_name = tensor.dtype.name
     element_type = {
         "int8": "i8",
@@ -63,6 +64,7 @@ def tensor_metadata(tensor: Any, label: str) -> dict[str, Any]:
 
 
 def inspect_signature(inputs: Any, outputs: Any) -> dict[str, Any]:
+    """Build metadata for exactly one input and one output tensor."""
     inputs = list(inputs)
     outputs = list(outputs)
     if len(inputs) != 1:
@@ -82,6 +84,7 @@ def inspect_signature(inputs: Any, outputs: Any) -> dict[str, Any]:
 
 
 def inspect_model(input_path: Path) -> dict[str, Any]:
+    """Load serving_default and extract its keyword input/output signature."""
     try:
         import tensorflow as tf
     except ImportError as error:
@@ -101,6 +104,7 @@ def inspect_model(input_path: Path) -> dict[str, Any]:
 
 
 def main() -> None:
+    """Write signature JSON for the Rust frontend; include tool versions on failure."""
     args = parse_args()
     try:
         metadata = inspect_model(args.input.resolve())

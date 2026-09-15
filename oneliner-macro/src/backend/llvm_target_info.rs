@@ -1,3 +1,5 @@
+//! Fetch a Rust target specification and convert it into LLVM triple, CPU and feature flags.
+
 //! Resolve the LLVM triple used by a Rust compilation target.
 //!
 //! This is the Rust equivalent of:

@@ -30,3 +30,6 @@ ndarray = ["oneliner-runtime/ndarray"]
 [dependencies]
 oneliner-macro.workspace = true
 oneliner-runtime = { workspace = true, features = ["iree-runtime"] }
+
+[package.metadata.docs.rs]
+features = ["alloc", "ndarray"]

@@ -29,6 +29,7 @@ def package_version(distribution: str) -> str:
 
 
 def load_toolchain() -> tuple[Any, Any]:
+    """Load compatible torch and IREE Turbine packages from the active interpreter."""
     try:
         import torch
     except ImportError as error:
@@ -49,6 +50,7 @@ def load_toolchain() -> tuple[Any, Any]:
 
 
 def validate_exported_program(program: Any, torch: Any) -> None:
+    """Require one user tensor input/output and no dynamic export constraints."""
     exported_program_type = getattr(torch.export, "ExportedProgram", None)
     if exported_program_type is None or not isinstance(program, exported_program_type):
         raise TypeError(
@@ -94,6 +96,7 @@ def validate_exported_program(program: Any, torch: Any) -> None:
 
 
 def import_model(input_path: Path, output_path: Path, module_name: str) -> None:
+    """Import a .pt2 program and write MLIR, adding tool versions to failure diagnostics."""
     if input_path.suffix.lower() != ".pt2":
         raise ValueError(f"expected a .pt2 PyTorch model, got: {input_path}")
 
@@ -121,6 +124,7 @@ def import_model(input_path: Path, output_path: Path, module_name: str) -> None:
 
 
 def main() -> None:
+    """Resolve CLI paths and invoke model import."""
     args = parse_args()
     import_model(args.input.resolve(), args.output.resolve(), args.module_name)
 
