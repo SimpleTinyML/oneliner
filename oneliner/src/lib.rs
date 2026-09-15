@@ -44,7 +44,7 @@ extern crate alloc;
 #[doc(inline)]
 pub use oneliner_macro::model;
 
-/// Tensor, arena, inference and backend interfaces used by generated models.
+/// Tensor, arena, inference and backend interfaces used by generated models. Re-exported from crate [`oneliner_runtime`].
 pub mod runtime {
     #[doc(inline)]
     pub use oneliner_runtime::*;
