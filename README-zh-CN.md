@@ -2,7 +2,7 @@
 
 **一行代码完成 TinyML 模型推理，专注 `no_std` 嵌入式目标。**
 
-已实机验证的宿主与嵌入式目标详见[目标支持](docs/target_support.md)。
+已实机验证的宿主与嵌入式目标详见[目标支持](https://github.com/SimpleTinyML/oneliner/blob/main/docs/target_support.md)。
 
 [![Current Crates.io Version](https://img.shields.io/crates/v/oneliner.svg)](https://crates.io/crates/oneliner)
 [![Minimum Supported Rust Version](https://img.shields.io/crates/msrv/oneliner)](https://crates.io/crates/oneliner)
@@ -22,7 +22,7 @@ struct MyModel;
 
 ## 快速开始
 
-1. [安装宿主端模型编译工具链](docs/installation.md)。
+1. [安装宿主端模型编译工具链](https://github.com/SimpleTinyML/oneliner/blob/main/docs/installation.md)。
 2. 在 `Cargo.toml` 中添加依赖：
 
    ```toml
@@ -59,7 +59,7 @@ Oneliner 支持：
 - TensorFlow SavedModel v2 目录
 - IREE 接受的 MLIR
 
-各格式的使用指南详见[模型格式说明](docs/model_formats.md)，`owned`/`shared` 工作区模式详见[内存模型](docs/memory_model.md)。
+各格式的使用指南详见[模型格式说明](https://github.com/SimpleTinyML/oneliner/blob/main/docs/model_formats.md)，`owned`/`shared` 工作区模式详见[内存模型](https://github.com/SimpleTinyML/oneliner/blob/main/docs/memory_model.md)。
 
 ## `#[model]` 属性参数
 
@@ -74,14 +74,14 @@ struct MyModel;
 | --- | --- | --- | --- |
 | `"<路径>"`（位置参数，必填） | 字符串 | — | 模型文件或目录路径，相对于应用的 `Cargo.toml` 解析。 |
 | `backend` | `"iree"` | `"iree"` | 执行后端，目前仅支持 IREE。 |
-| `arena` | `"owned"`、`"shared"` | `"owned"` | 工作区内存模式，详见[内存模型](docs/memory_model.md)。 |
+| `arena` | `"owned"`、`"shared"` | `"owned"` | 工作区内存模式，详见[内存模型](https://github.com/SimpleTinyML/oneliner/blob/main/docs/memory_model.md)。 |
 | `format` | `"mlir"`、`"onnx"`、`"pytorch"`/`"pt2"`、`"tensorflow"`/`"tf"`、`"tflite"` | 按文件扩展名自动推断 | 显式指定模型格式。TensorFlow SavedModel v2 目录（无扩展名）必须显式指定。 |
 
 格式通常按扩展名（`.mlir`、`.onnx`、`.pt2`、`.tflite`）自动推断；需要覆盖时用 `format` 显式指定，TensorFlow SavedModel 目录必须指定。重复或未知选项会在编译期报错。
 
 ## 性能剖析
 
-使用可选的 `oneliner-profiler` crate 测量推理延迟，每次模型构建还会自动输出 flash/RAM 占用报告。详见[性能剖析与占用报告](docs/profiling.md)及[基准测试数据](docs/benchmark.md)。
+使用可选的 `oneliner-profiler` crate 测量推理延迟，每次模型构建还会自动输出 flash/RAM 占用报告。详见[性能剖析与占用报告](https://github.com/SimpleTinyML/oneliner/blob/main/docs/profiling.md)及[基准测试数据](https://github.com/SimpleTinyML/oneliner/blob/main/docs/benchmark.md)。
 
 ## 示例
 
@@ -89,13 +89,13 @@ struct MyModel;
 
 | 示例 | 演示内容 | 使用的模型 |
 | --- | --- | --- |
-| [Desktop Std](examples/std-minimal/) | 在标准宿主上的最短端到端验证路径 | 量化 MCUNet 视觉唤醒词 |
-| [Ariel OS](examples/ariel-os-minimal/) | `no_std`，以 Ariel OS 为运行环境 | 量化 LeNet5 和 MCUNet |
-| [Embassy on Raspberry Pi Pico](examples/embassy-pico-minimal/) | 裸机 RP2040，静态输入存储 | 量化 LeNet5 |
-| [Ariel OS + Profiler](examples/ariel-os-profiler/) | `no_std` 延迟剖析（`Profiler`） | 量化 LeNet5 和 MCUNet |
-| [Embassy on Raspberry Pi Pico + Profiler](examples/embassy-pico-profiler/) | 裸机 RP2040 延迟剖析 | 量化 LeNet5 |
+| [Desktop Std](https://github.com/SimpleTinyML/oneliner/tree/main/examples/std-minimal/) | 在标准宿主上的最短端到端验证路径 | 量化 MCUNet 视觉唤醒词 |
+| [Ariel OS](https://github.com/SimpleTinyML/oneliner/tree/main/examples/ariel-os-minimal/) | `no_std`，以 Ariel OS 为运行环境 | 量化 LeNet5 和 MCUNet |
+| [Embassy on Raspberry Pi Pico](https://github.com/SimpleTinyML/oneliner/tree/main/examples/embassy-pico-minimal/) | 裸机 RP2040，静态输入存储 | 量化 LeNet5 |
+| [Ariel OS + Profiler](https://github.com/SimpleTinyML/oneliner/tree/main/examples/ariel-os-profiler/) | `no_std` 延迟剖析（`Profiler`） | 量化 LeNet5 和 MCUNet |
+| [Embassy on Raspberry Pi Pico + Profiler](https://github.com/SimpleTinyML/oneliner/tree/main/examples/embassy-pico-profiler/) | 裸机 RP2040 延迟剖析 | 量化 LeNet5 |
 
-建议先运行[桌面示例](examples/std-minimal/)确认模型工具链，再选择与目标环境匹配的操作系统或开发板示例。
+建议先运行[桌面示例](https://github.com/SimpleTinyML/oneliner/tree/main/examples/std-minimal/)确认模型工具链，再选择与目标环境匹配的操作系统或开发板示例。
 
 ## 项目状态
 
@@ -113,4 +113,4 @@ Oneliner 由 [ariel-ml](https://github.com/ariel-os/ariel-ml) 演变而来：保
 
 除非你明确声明，任何有意提交的贡献都将按上述双重许可授权，不附加任何额外条款或条件。
 
-**其他语言：** [English](README.md)
+**其他语言：** [English](https://github.com/SimpleTinyML/oneliner/blob/main/README.md)

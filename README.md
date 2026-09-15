@@ -2,7 +2,7 @@
 
 **TinyML model inference with one-line code. Focus on `no_std` embedded targets.**
 
-For the verified host and embedded targets, see [Target support](docs/target_support.md).
+For the verified host and embedded targets, see [Target support](https://github.com/SimpleTinyML/oneliner/blob/main/docs/target_support.md).
 
 [![Current Crates.io Version](https://img.shields.io/crates/v/oneliner.svg)](https://crates.io/crates/oneliner)
 [![Minimum Supported Rust Version](https://img.shields.io/crates/msrv/oneliner)](https://crates.io/crates/oneliner)
@@ -21,7 +21,7 @@ struct MyModel;
 ```
 ## Quick Start
 
-1. [Install the host model compilation toolchain](docs/installation.md).
+1. [Install the host model compilation toolchain](https://github.com/SimpleTinyML/oneliner/blob/main/docs/installation.md).
 2. Add the crate to your `Cargo.toml`:
 
    ```toml
@@ -58,7 +58,7 @@ Oneliner accepts:
 - TensorFlow SavedModel v2 directories
 - MLIR accepted by IREE
 
-See [Model formats](docs/model_formats.md) for per-format guides and [Memory model](docs/memory_model.md) for the `owned`/`shared` arena modes.
+See [Model formats](https://github.com/SimpleTinyML/oneliner/blob/main/docs/model_formats.md) for per-format guides and [Memory model](https://github.com/SimpleTinyML/oneliner/blob/main/docs/memory_model.md) for the `owned`/`shared` arena modes.
 
 ## The `#[model]` attribute
 
@@ -73,14 +73,14 @@ struct MyModel;
 | --- | --- | --- | --- |
 | `"<path>"` (positional, required) | string | — | Model file or directory path, resolved relative to the application's `Cargo.toml`. |
 | `backend` | `"iree"` | `"iree"` | Execution backend. Only IREE is currently available. |
-| `arena` | `"owned"`, `"shared"` | `"owned"` | Workspace memory mode, see [Memory model](docs/memory_model.md). |
+| `arena` | `"owned"`, `"shared"` | `"owned"` | Workspace memory mode, see [Memory model](https://github.com/SimpleTinyML/oneliner/blob/main/docs/memory_model.md). |
 | `format` | `"mlir"`, `"onnx"`, `"pytorch"`/`"pt2"`, `"tensorflow"`/`"tf"`, `"tflite"` | auto-detected from the file extension | Explicit model format override. Required for TensorFlow SavedModel v2 directories (no extension). |
 
 The format is normally inferred from the extension (`.mlir`, `.onnx`, `.pt2`, `.tflite`); pass `format` explicitly to override it, which is mandatory for TensorFlow SavedModel directories. Duplicate or unknown options are rejected at compile time.
 
 ## Profiling
 
-Measure inference latency with the optional `oneliner-profiler` crate and get an automatic flash/RAM footprint report on every model build. See [Profiling and footprint reporting](docs/profiling.md) and the [benchmark numbers](docs/benchmark.md).
+Measure inference latency with the optional `oneliner-profiler` crate and get an automatic flash/RAM footprint report on every model build. See [Profiling and footprint reporting](https://github.com/SimpleTinyML/oneliner/blob/main/docs/profiling.md) and the [benchmark numbers](https://github.com/SimpleTinyML/oneliner/blob/main/docs/benchmark.md).
 
 ## Examples
 
@@ -88,13 +88,13 @@ Each example is an independent Cargo project. Run its commands from the example 
 
 | Example | What it demonstrates | Active model |
 | --- | --- | --- |
-| [Desktop Std](examples/std-minimal/) | The shortest end-to-end validation path on a standard host | Quantized MCUNet visual wake word |
-| [Ariel OS](examples/ariel-os-minimal/) | `no_std`, Ariel OS as environment | Quantized LeNet5 and MCUNet|
-| [Embassy on Rasperry Pi Pico](examples/embassy-pico-minimal/) | Bare-metal RP2040, static input storage| Quantized LeNet5 |
-| [Ariel OS + Profiler](examples/ariel-os-profiler/) | `no_std` latency profiling with `Profiler` | Quantized LeNet5 and MCUNet |
-| [Embassy on Rasperry Pi Pico + Profiler](examples/embassy-pico-profiler/) | Bare-metal RP2040 latency profiling | Quantized LeNet5 |
+| [Desktop Std](https://github.com/SimpleTinyML/oneliner/tree/main/examples/std-minimal/) | The shortest end-to-end validation path on a standard host | Quantized MCUNet visual wake word |
+| [Ariel OS](https://github.com/SimpleTinyML/oneliner/tree/main/examples/ariel-os-minimal/) | `no_std`, Ariel OS as environment | Quantized LeNet5 and MCUNet|
+| [Embassy on Rasperry Pi Pico](https://github.com/SimpleTinyML/oneliner/tree/main/examples/embassy-pico-minimal/) | Bare-metal RP2040, static input storage| Quantized LeNet5 |
+| [Ariel OS + Profiler](https://github.com/SimpleTinyML/oneliner/tree/main/examples/ariel-os-profiler/) | `no_std` latency profiling with `Profiler` | Quantized LeNet5 and MCUNet |
+| [Embassy on Rasperry Pi Pico + Profiler](https://github.com/SimpleTinyML/oneliner/tree/main/examples/embassy-pico-profiler/) | Bare-metal RP2040 latency profiling | Quantized LeNet5 |
 
-Start with the [desktop example](examples/std-minimal/) to confirm the model toolchain, then move to the operating system or board example that matches your target.
+Start with the [desktop example](https://github.com/SimpleTinyML/oneliner/tree/main/examples/std-minimal/) to confirm the model toolchain, then move to the operating system or board example that matches your target.
 
 ## Project Status
 
@@ -108,8 +108,8 @@ Oneliner evolved from [ariel-ml](https://github.com/ariel-os/ariel-ml): it keeps
 
 ## License
 
-Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT) at your option.
+Licensed under either of [Apache License, Version 2.0](https://github.com/SimpleTinyML/oneliner/blob/main/LICENSE-APACHE) or [MIT license](https://github.com/SimpleTinyML/oneliner/blob/main/LICENSE-MIT) at your option.
 
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you shall be dual-licensed as above, without any additional terms or conditions.
 
-**Other languages:** [简体中文](README-zh-CN.md)
+**Other languages:** [简体中文](https://github.com/SimpleTinyML/oneliner/blob/main/README-zh-CN.md)
