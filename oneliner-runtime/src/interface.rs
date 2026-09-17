@@ -92,15 +92,22 @@ impl<T, const D1: usize, const D2: usize, const D3: usize, const D4: usize>
     }
 
     /// Returns 0 if at least one axis is zero.
-    pub const fn is_empty(&self) -> bool {
+    pub const fn is_empty() -> bool {
         Self::LEN == 0
     }
 
-    // TODO: semantic fix required, it should be shape.
+    
+    /// Returns the dimension of tensor.
+    pub const fn dim() -> usize {
+        4
+    }
+
     /// Returns the shape of tensor.
-    pub const fn dim(&self) -> Shape {
+    pub const fn shape() -> Shape {
         Self::SHAPE
     }
+
+
 
     #[cfg(feature = "ndarray")]
     /// Borrows the storage as a contiguous ndarray view (`ndarray` feature).
