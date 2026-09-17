@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use proc_macro2::Span;
 use syn::Ident;
 
-use super::discovery::parse_query_function;
+use super::parse_c_symbols::parse_query_function;
 use super::metadata::load_metadata;
 use super::object_size::measure_object;
 use super::toolchain::{run_converter, run_iree_compile};

@@ -2,7 +2,7 @@
 
 mod artifacts;
 mod codegen;
-mod discovery;
+mod parse_c_symbols;
 mod metadata;
 mod object_size;
 mod toolchain;
