@@ -223,7 +223,7 @@ pub trait ModelSource {
     /// Path of source model file on the build host.
     const MODEL_PATH: &'static str;
     /// Model metadata including paths of intermediate files, estimated memory usage etc.
-    const ARTIFACTS: ModelArtifacts;
+    const ARTIFACTS: ModelMetadata;
 }
 
 /// Failures reported by raw buffer validation and backend dispatch.
@@ -330,7 +330,7 @@ impl core::fmt::Display for Error {
 /// application/OS state, stack usage and allocator overhead. Alignment and final
 /// linker placement can change the actual footprint.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ModelArtifacts {
+pub struct ModelMetadata {
     /// Backend name, currently `iree`.
     pub backend: &'static str,
     /// Original model file path.
@@ -362,4 +362,50 @@ pub struct ModelArtifacts {
     pub total_flash_size: usize,
     /// Workspace RAM usage of the model.
     pub ram_size: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IOSize {
+    /// Size in bytes of the model's input tensor.
+    pub input_size: usize,
+    /// Size in bytes of the model's output tensor.
+    pub output_size: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RAMUsage {
+    /// Workspace RAM usage of the model.
+    pub arena_size: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FlashUsage {
+    /// Model parameter/weight bytes.
+    pub params_size: usize,
+    /// Machine code bytes of the compiled model.
+    pub code_size: usize,
+    /// Read-only data bytes embedded in the compiled model object (lookup
+    /// tables, library metadata, unwind tables).
+    pub rodata_size: usize,
+    /// Sum of `params_size`, `code_size` and `rodata_size` of the compiled model before final linking.
+    pub total_flash_size: usize,
+}
+
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ArtifactPaths {
+     /// Original model file path.
+    pub model_path: &'static str,
+    /// MLIR input passed to IREE after frontend conversion, if any.
+    pub compile_input_path: &'static str,
+    /// Native model ELF object emitted by IREE.
+    pub object_path: &'static str,
+    /// Native link input; currently the same path as `object_path`.
+    pub link_path: &'static str,
+    /// IREE phase dump MLIRs by the Stream/Flow converter.
+    pub ir_path: &'static str,
+    /// Generated Rust execution source by the Stream/Flow converter.
+    pub flow_rs_path: &'static str,
+    /// JSON resource/command metadata used by [`model`] macro expansion.
+    pub metadata_json_path: &'static str,
 }

@@ -24,7 +24,7 @@ pub use buffer::{
 
 pub use executor::{DefaultExecutor, Executor, SequentialExecutor, WorkItem};
 pub use interface::{
-    Error, ModelArtifacts, ModelInference, ModelSource, Shape, Tensor, Tensor4D, TensorArray,
+    Error, ModelMetadata, ModelInference, ModelSource, Shape, Tensor, Tensor4D, TensorArray,
 };
 #[cfg(feature = "iree-runtime")]
 pub use iree::{

@@ -1,9 +1,9 @@
 use std::path::Path;
 
-use oneliner::runtime::{ModelArtifacts, ModelSource};
+use oneliner::runtime::{ModelMetadata, ModelSource};
 
 pub fn assert_artifacts<M: ModelSource>(model_name: &str) {
-    let ModelArtifacts {
+    let ModelMetadata {
         backend,
         model_path,
         compile_input_path,
