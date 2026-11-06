@@ -1,60 +1,47 @@
 use std::path::Path;
 
-use oneliner::runtime::{ModelMetadata, ModelSource};
+use oneliner::runtime::{ModelMetadata, ResourceUsage};
 
-pub fn assert_artifacts<M: ModelSource>(model_name: &str) {
+pub fn assert_metadata(
+    model_name: &str,
+    metadata: &ModelMetadata,
+    usage: &ResourceUsage,
+    input_bytes: usize,
+    output_bytes: usize,
+) {
     let ModelMetadata {
         backend,
         model_path,
-        compile_input_path,
-        object_path,
-        link_path,
-        ir_path,
-        flow_rs_path,
-        metadata_json_path,
-        input_size,
-        output_size,
-        params_size,
-        code_size,
-        rodata_size,
-        total_flash_size,
-        ram_size,
-    } = M::ARTIFACTS;
+    } = *metadata;
+    let ResourceUsage { io, ram: _, flash } = *usage;
 
     assert_eq!(backend, "iree", "{model_name}: unexpected backend");
-    assert!(input_size > 0, "{model_name}: empty input binding");
-    assert!(output_size > 0, "{model_name}: empty output binding");
+    assert!(io.input_size > 0, "{model_name}: empty input binding");
+    assert!(io.output_size > 0, "{model_name}: empty output binding");
+    assert_eq!(
+        io.input_size, input_bytes,
+        "{model_name}: input size must match tensor byte length"
+    );
+    assert_eq!(
+        io.output_size, output_bytes,
+        "{model_name}: output size must match tensor byte length"
+    );
     // Footprints may be zero for models without weights or scratch buffers
     // (for example a trivial identity/abs graph); they must still be reported.
     assert!(
-        code_size > 0,
+        flash.code_size > 0,
         "{model_name}: compiled model object must contain machine code"
     );
     assert_eq!(
-        total_flash_size,
-        params_size + code_size + rodata_size,
+        flash.total_flash_size,
+        flash.params_size + flash.code_size + flash.rodata_size,
         "{model_name}: total flash must equal params + code + rodata"
     );
-    let _ = ram_size;
 
     assert!(
         Path::new(model_path).exists(),
         "{model_name}: model does not exist: {model_path}"
     );
-
-    for (label, path) in [
-        ("compile input", compile_input_path),
-        ("object", object_path),
-        ("link", link_path),
-        ("stream/flow IR", ir_path),
-        ("generated Rust flow", flow_rs_path),
-        ("metadata", metadata_json_path),
-    ] {
-        assert!(
-            Path::new(path).is_file(),
-            "{model_name}: {label} artifact does not exist: {path}"
-        );
-    }
 }
 
 #[allow(dead_code)]

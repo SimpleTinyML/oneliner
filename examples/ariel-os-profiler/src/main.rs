@@ -5,7 +5,7 @@ use ariel_os::debug::{exit, ExitCode};
 use ariel_os::log::{error, info};
 
 use oneliner::model;
-use oneliner::runtime::{ModelInference, ModelSource};
+use oneliner::runtime::ModelInference;
 use oneliner_profiler::Profiler;
 
 use static_cell::ConstStaticCell;
@@ -31,20 +31,20 @@ const EXPECTED: [f32; OUTPUT_LEN] = [
 #[ariel_os::thread(autostart, priority = 1, stacksize=20480)]
 // #[ariel_os::thread(autostart, priority = 1)]
 fn main() {
-    let artifacts = <Model as ModelSource>::ARTIFACTS;
+    let usage = Model::RESOURCE_USAGE;
     info!(
         "Oneliner IREE profiler example running on {}",
         ariel_os::buildinfo::BOARD
     );
     info!(
         "Flash usage: params={} code={} rodata={} total={} | RAM usage: arena={} input={} output={}",
-        artifacts.params_size,
-        artifacts.code_size,
-        artifacts.rodata_size,
-        artifacts.total_flash_size,
-        artifacts.ram_size,
-        artifacts.input_size,
-        artifacts.output_size
+        usage.flash.params_size,
+        usage.flash.code_size,
+        usage.flash.rodata_size,
+        usage.flash.total_flash_size,
+        usage.ram.arena_size,
+        usage.io.input_size,
+        usage.io.output_size
     );
 
     let mut model = Model::new();

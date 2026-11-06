@@ -18,11 +18,8 @@ use crate::frontend::{Model, TensorInfo};
 #[derive(Debug)]
 struct ArtifactPaths {
     model: PathBuf,
-    compile_input: PathBuf,
     object: PathBuf,
-    ir: PathBuf,
     flow_rs: PathBuf,
-    metadata_json: PathBuf,
 }
 
 #[derive(Debug, Clone)]
@@ -43,7 +40,7 @@ struct IreeArtifacts {
     params_size: usize,
     code_size: usize,
     rodata_size: usize,
-    ram_size: usize,
+    arena_size: usize,
 }
 
 pub fn expand(
@@ -57,7 +54,7 @@ pub fn expand(
     let code_size = artifacts.code_size;
     let rodata_size = artifacts.rodata_size;
     let total_flash_size = params_size + code_size + rodata_size;
-    let ram_size = artifacts.ram_size;
+    let arena_size = artifacts.arena_size;
     let input_size = artifacts.input.size;
     let output_size = artifacts.output.size;
 
@@ -75,8 +72,8 @@ pub fn expand(
     );
     eprintln!(
         "  RAM Usage: arena = {} B ({} KiB), input = {} B ({} KiB), output = {} B ({} KiB)",
-        ram_size,
-        ram_size / 1024,
+        arena_size,
+        arena_size / 1024,
         input_size,
         input_size / 1024,
         output_size,

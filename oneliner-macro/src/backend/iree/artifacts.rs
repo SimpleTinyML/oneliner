@@ -69,11 +69,8 @@ pub(super) fn build(struct_ident: &Ident, model: Model) -> syn::Result<IreeArtif
     Ok(IreeArtifacts {
         paths: ArtifactPaths {
             model: model_path,
-            compile_input: compile_input_path,
             object: object_path,
-            ir: ir_path,
             flow_rs,
-            metadata_json,
         },
         query_fn,
         query_link_name,
@@ -85,7 +82,7 @@ pub(super) fn build(struct_ident: &Ident, model: Model) -> syn::Result<IreeArtif
         params_size: metadata.params_size,
         code_size: footprint.code_size,
         rodata_size: footprint.rodata_size,
-        ram_size: metadata.ram_size,
+        arena_size: metadata.arena_size,
     })
 }
 

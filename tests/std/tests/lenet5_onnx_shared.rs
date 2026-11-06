@@ -17,12 +17,17 @@ const EXPECTED: [f32; 10] = [
 
 #[test]
 fn lenet5_onnx_runs_with_shared_arena() {
-    support::assert_artifacts::<LeNet5OnnxShared>("lenet5_quantized.onnx (shared)");
-
     let mut model = LeNet5OnnxShared::new();
     let mut input = LeNet5OnnxShared::create_input_tensor();
     input.fill(7.0);
 
     let output = model.run(&input);
+    support::assert_metadata(
+        "lenet5_quantized.onnx (shared)",
+        &LeNet5OnnxShared::METADATA,
+        &LeNet5OnnxShared::RESOURCE_USAGE,
+        input.byte_len(),
+        output.byte_len(),
+    );
     support::assert_f32_slice_close(output.as_slice(), &EXPECTED, 1.0e-5);
 }

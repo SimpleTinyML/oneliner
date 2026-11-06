@@ -7,7 +7,7 @@ use {defmt_rtt as _, panic_probe as _};
 use defmt::{info, error};
 
 use oneliner::model;
-use oneliner::runtime::{ModelInference, ModelSource};
+use oneliner::runtime::ModelInference;
 use static_cell::ConstStaticCell;
 
 #[model("../models/lenet5_quantized.tflite", arena = "shared")]
@@ -20,11 +20,11 @@ static INPUT_CELL: ConstStaticCell<<Model as ModelInference>::InputTensor> = Con
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
     let _p = embassy_rp::init(Default::default());
-    let artifacts = <Model as ModelSource>::ARTIFACTS;
+    let usage = Model::RESOURCE_USAGE;
 
     info!(
-        "Model artifact sizes: input={} output={}",
-        artifacts.input_size, artifacts.output_size
+        "Model tensor sizes: input={} output={}",
+        usage.io.input_size, usage.io.output_size
     );
 
     let mut model = Model::new();
