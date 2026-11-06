@@ -26,4 +26,3 @@ embassy = ["dep:embassy-time"]
 ariel-os = { workspace = true, optional = true }
 defmt.workspace = true
 embassy-time = { workspace = true, optional = true }
-oneliner-runtime.workspace = true

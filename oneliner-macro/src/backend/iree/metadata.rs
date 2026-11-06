@@ -122,65 +122,36 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sums_footprint_deduplicating_shared_resources() {
-        let resources = [
-            Resource {
-                static_ident: Some("CONST_ARG2".into()),
-                size: Some(100),
-                role: Role::Constant,
-            },
-            Resource {
-                static_ident: Some("CONST_ARG2".into()),
-                size: Some(100),
-                role: Role::Constant,
-            },
-            Resource {
-                static_ident: Some("CONST_ARG5".into()),
-                size: Some(7),
-                role: Role::Constant,
-            },
-            Resource {
-                static_ident: Some("TEMP_ARG4".into()),
-                size: Some(50),
-                role: Role::Temporary,
-            },
-            Resource {
-                static_ident: Some("TEMP_ARG9".into()),
-                size: Some(50),
-                role: Role::Temporary,
-            },
-            Resource {
-                static_ident: Some("INPUT_ARG1".into()),
-                size: Some(16),
-                role: Role::Input,
-            },
-        ];
-        let (params_size, arena_size) = footprint_sizes(resources.iter());
-        assert_eq!(params_size, 107);
-        assert_eq!(arena_size, 100);
-    }
-
-    #[test]
-    fn deserializes_constant_and_temporary_roles() {
+    fn parses_metadata_and_deduplicates_footprints() {
         let value: Metadata = serde_json::from_str(
             r#"{
                 "cmd_executes": [{
                     "name": "cmd_execute_0",
                     "resources": [
                         {"static_ident": "CONST_ARG2", "kind": "constant", "size": 100, "role": "constant"},
-                        {"static_ident": "TEMP_ARG4", "kind": "transient", "size": 50, "role": "temporary"}
+                        {"static_ident": "CONST_ARG2", "kind": "constant", "size": 100, "role": "constant"},
+                        {"static_ident": "CONST_ARG5", "kind": "constant", "size": 7, "role": "constant"},
+                        {"static_ident": "TEMP_ARG4", "kind": "transient", "size": 50, "role": "temporary"},
+                        {"static_ident": "TEMP_ARG9", "kind": "transient", "size": 50, "role": "temporary"},
+                        {"static_ident": "INPUT_ARG1", "kind": "input", "size": 16, "role": "input"}
                     ]
                 }]
             }"#,
         )
         .unwrap();
-        assert_eq!(
-            value.cmd_executes[0].resources[0].role,
-            Role::Constant
-        );
-        assert_eq!(
-            value.cmd_executes[0].resources[1].role,
-            Role::Temporary
-        );
+        let resources: Vec<&Resource> = value
+            .cmd_executes
+            .iter()
+            .flat_map(|execute| execute.resources.iter())
+            .collect();
+
+        assert_eq!(resources[0].role, Role::Constant);
+        assert_eq!(resources[1].role, Role::Constant);
+        assert_eq!(resources[3].role, Role::Temporary);
+        assert_eq!(resources[5].role, Role::Input);
+
+        let (params_size, arena_size) = footprint_sizes(resources.into_iter());
+        assert_eq!(params_size, 107);
+        assert_eq!(arena_size, 100);
     }
 }

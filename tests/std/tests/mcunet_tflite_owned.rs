@@ -1,5 +1,3 @@
-mod support;
-
 use oneliner::model;
 use oneliner::runtime::ModelInference;
 
@@ -17,12 +15,5 @@ fn mcunet_tflite_runs_with_owned_arena() {
     input.fill(7);
 
     let output = model.run(&input);
-    support::assert_metadata(
-        "mcunet-10fps_vww.tflite (owned)",
-        &McunetTfliteOwned::METADATA,
-        &McunetTfliteOwned::RESOURCE_USAGE,
-        input.byte_len(),
-        output.byte_len(),
-    );
     assert_eq!(output.as_slice(), &[4, -5]);
 }

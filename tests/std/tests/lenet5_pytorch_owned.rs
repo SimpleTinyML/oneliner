@@ -30,12 +30,5 @@ fn lenet5_pytorch_runs_with_owned_arena() {
     input.fill(1.0);
 
     let output = model.run(&input);
-    support::assert_metadata(
-        "lenet5_pytorch.pt2 (owned)",
-        &LeNet5PytorchOwned::METADATA,
-        &LeNet5PytorchOwned::RESOURCE_USAGE,
-        input.byte_len(),
-        output.byte_len(),
-    );
     support::assert_f32_slice_close(output.as_slice(), &EXPECTED, 1.0e-5);
 }

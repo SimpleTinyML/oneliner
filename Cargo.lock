@@ -498,7 +498,6 @@ dependencies = [
  "ariel-os",
  "defmt",
  "embassy-time",
- "oneliner-runtime",
 ]
 
 [[package]]

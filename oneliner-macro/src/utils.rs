@@ -165,6 +165,16 @@ mod tests {
         assert_eq!(rust_ident(" 9-model.value "), "v_9_model_value");
         assert_eq!(rust_ident("struct"), "struct_");
         assert_eq!(rust_ident("gen"), "gen_");
+        assert_eq!(
+            rust_ident("main$async_dispatch_0_library_query"),
+            "main_async_dispatch_0_library_query"
+        );
+
+        let rust_name = rust_ident("main$async_dispatch_0_library_query");
+        assert_eq!(
+            parse_ident(&rust_name, "test").unwrap().to_string(),
+            rust_name
+        );
     }
 
     #[test]

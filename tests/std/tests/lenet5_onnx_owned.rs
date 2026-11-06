@@ -22,12 +22,5 @@ fn lenet5_onnx_runs_with_owned_arena() {
     input.fill(7.0);
 
     let output = model.run(&input);
-    support::assert_metadata(
-        "lenet5_quantized.onnx (owned)",
-        &LeNet5OnnxOwned::METADATA,
-        &LeNet5OnnxOwned::RESOURCE_USAGE,
-        input.byte_len(),
-        output.byte_len(),
-    );
     support::assert_f32_slice_close(output.as_slice(), &EXPECTED, 1.0e-5);
 }

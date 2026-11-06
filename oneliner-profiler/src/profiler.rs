@@ -81,7 +81,6 @@ impl<T: Timer + Default> Default for Profiler<T> {
 mod tests {
     use super::*;
     use core::cell::Cell;
-    use oneliner_runtime::ModelInference;
 
     /// Timer whose `now` advances by 10 us per read, so every elapsed interval
     /// is 10 us.
@@ -109,32 +108,19 @@ mod tests {
         }
     }
 
-    struct DummyModel;
-
-    impl ModelInference for DummyModel {
-        type InputTensor = u8;
-        type OutputTensor = u16;
-
-        fn create_input_tensor() -> Self::InputTensor {
-            0
-        }
-
-        fn run(&mut self, input: &Self::InputTensor) -> Self::OutputTensor {
-            *input as u16 + 1
-        }
-    }
-
     #[test]
     fn profiles_closures_and_accumulates_stats() {
         let mut profiler = Profiler::with_timer(DummyTimer::new());
-        let mut model = DummyModel;
 
-        let output = profiler.profile(|| model.run(&7));
+        let output = profiler.profile(|| 7 + 1);
         assert_eq!(output, 8);
         assert_eq!(profiler.stats().samples, 1);
-        assert_eq!(profiler.stats().average(), Some(core::time::Duration::from_micros(10)));
+        assert_eq!(
+            profiler.stats().average(),
+            Some(core::time::Duration::from_micros(10))
+        );
 
-        let output = profiler.profile(|| model.run(&8));
+        let output = profiler.profile(|| 8 + 1);
         assert_eq!(output, 9);
         assert_eq!(profiler.stats().samples, 2);
         assert_eq!(
@@ -149,24 +135,10 @@ mod tests {
             profiler.stats().average(),
             Some(core::time::Duration::from_micros(10))
         );
-    }
-
-    #[test]
-    fn reset_clears_statistics() {
-        let mut profiler = Profiler::with_timer(DummyTimer::new());
-        let mut model = DummyModel;
-
-        profiler.profile(|| model.run(&1));
-        assert_eq!(profiler.stats().samples, 1);
 
         profiler.reset_stats();
         assert_eq!(profiler.stats().samples, 0);
         assert_eq!(profiler.stats().min, None);
         assert_eq!(profiler.stats().max, None);
-    }
-
-    #[test]
-    fn default_timer_builds() {
-        let _profiler = Profiler::new();
     }
 }

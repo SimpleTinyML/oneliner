@@ -24,8 +24,10 @@ SPEC.loader.exec_module(CONVERTER)
 
 
 class FlowConverterTests(unittest.TestCase):
-    def test_structured_parser_flattens_local_export_ordinals(self):
-        text = FIXTURE.read_text(encoding="utf-8")
+    def test_structured_parser_resolves_exports_and_ordinals_in_named_module(self):
+        text = FIXTURE.read_text(encoding="utf-8").replace(
+            "module attributes", "module @container attributes", 1
+        )
         executable_start = text.index("  hal.executable private")
         executable_end = text.index("  util.func public", executable_start)
         executable = text[executable_start:executable_end]
@@ -40,14 +42,30 @@ class FlowConverterTests(unittest.TestCase):
             [command.ordinal for command in executes[0].commands], [0, 1]
         )
 
-    def test_structured_parser_resolves_exports_in_named_module(self):
+    def test_structured_parser_tracks_external_resource_roles(self):
+        # Read-only access to an external buffer does not change its logical role.
         text = FIXTURE.read_text(encoding="utf-8").replace(
-            "module attributes", "module @container attributes", 1
+            "wo %arg2[%c0 for %c8]", "ro %arg2[%c0 for %c8]", 1
         )
-
         executes, _ = CONVERTER.parse_cmd_executes(text)
+        self.assertEqual(executes[0].resources[0].role, "input")
+        self.assertEqual(executes[0].resources[1].role, "output")
 
-        self.assertEqual(executes[0].commands[0].ordinal, 0)
+        # Provenance forwarded through cf.br must still be classified as output.
+        allocation = """    %result, %result_timepoint = stream.resource.alloca uninitialized on(#hal.device.affinity<@__device_0>) : !stream.resource<external>{%c8} => !stream.timepoint
+    %1 = stream.cmd.execute"""
+        forwarded = """    %result, %result_timepoint = stream.resource.alloca uninitialized on(#hal.device.affinity<@__device_0>) : !stream.resource<external>{%c8} => !stream.timepoint
+    cf.br ^bb1(%result : !stream.resource<external>)
+  ^bb1(%forwarded: !stream.resource<external>):
+    %1 = stream.cmd.execute"""
+        forwarded_text = (
+            FIXTURE.read_text(encoding="utf-8")
+            .replace(allocation, forwarded, 1)
+            .replace("%result as %arg2", "%forwarded as %arg2", 1)
+            .replace("wo %arg2[%c0 for %c8]", "ro %arg2[%c0 for %c8]", 1)
+        )
+        executes, _ = CONVERTER.parse_cmd_executes(forwarded_text)
+        self.assertEqual(executes[0].resources[1].role, "output")
 
     def test_structured_parser_rejects_non_contiguous_local_ordinals(self):
         text = FIXTURE.read_text(encoding="utf-8").replace(
@@ -110,57 +128,14 @@ class FlowConverterTests(unittest.TestCase):
         ):
             CONVERTER.parse_cmd_executes(text)
 
-    def test_structured_parser_preserves_known_external_provenance(self):
-        text = FIXTURE.read_text(encoding="utf-8").replace(
-            "wo %arg2[%c0 for %c8]", "ro %arg2[%c0 for %c8]", 1
-        )
-
-        executes, _ = CONVERTER.parse_cmd_executes(text)
-
-        self.assertEqual(executes[0].resources[0].role, "input")
-        self.assertEqual(executes[0].resources[1].role, "output")
-
-    def test_structured_parser_tracks_external_provenance_through_cf(self):
-        text = FIXTURE.read_text(encoding="utf-8")
-        allocation = """    %result, %result_timepoint = stream.resource.alloca uninitialized on(#hal.device.affinity<@__device_0>) : !stream.resource<external>{%c8} => !stream.timepoint
-    %1 = stream.cmd.execute"""
-        forwarded = """    %result, %result_timepoint = stream.resource.alloca uninitialized on(#hal.device.affinity<@__device_0>) : !stream.resource<external>{%c8} => !stream.timepoint
-    cf.br ^bb1(%result : !stream.resource<external>)
-  ^bb1(%forwarded: !stream.resource<external>):
-    %1 = stream.cmd.execute"""
-        text = (
-            text.replace(allocation, forwarded, 1)
-            .replace("%result as %arg2", "%forwarded as %arg2", 1)
-            .replace("wo %arg2[%c0 for %c8]", "ro %arg2[%c0 for %c8]", 1)
-        )
-
-        executes, _ = CONVERTER.parse_cmd_executes(text)
-
-        self.assertEqual(executes[0].resources[1].role, "output")
-
     def test_rust_ident_uses_rust_keywords(self):
         self.assertEqual(CONVERTER.rust_ident("struct"), "struct_")
         self.assertEqual(CONVERTER.rust_ident("gen"), "gen_")
         self.assertEqual(CONVERTER.rust_ident("9-model.value"), "v_9_model_value")
 
-    def test_metadata_contains_rendered_workspace_identifier(self):
+    def test_renders_workspace_and_metadata_contract(self):
         binding = CONVERTER.ResourceBinding(
             arg="%arg-0",
-            source="%source",
-            kind="transient",
-            size_expr="16",
-            size=16,
-            role="temporary",
-        )
-
-        rendered = CONVERTER.dataclass_to_json(binding)
-
-        self.assertEqual(rendered["static_ident"], "TEMP_ARG_0")
-        self.assertIn("Aligned<AlignedType", CONVERTER.render_workspace_field(binding))
-
-    def test_generated_execute_function_propagates_errors(self):
-        binding = CONVERTER.ResourceBinding(
-            arg="%arg0",
             source="%source",
             kind="transient",
             size_expr="16",
@@ -178,9 +153,9 @@ class FlowConverterTests(unittest.TestCase):
             ranges=[
                 CONVERTER.TensorRange(
                     access="rw",
-                    arg="%arg0",
+                    arg="%arg-0",
                     kind="transient",
-                    tensor_name="temp_arg0",
+                    tensor_name="temp_arg_0",
                     offset_expr="0",
                     offset=0,
                     length_expr="16",
@@ -202,7 +177,7 @@ class FlowConverterTests(unittest.TestCase):
         self.assertIn("-> Result<(), Error>", rendered)
         self.assertIn("pub struct Workspace", rendered)
         self.assertIn("workspace: &mut Workspace", rendered)
-        self.assertIn("(*workspace.TEMP_ARG0).to_buffer_mut()", rendered)
+        self.assertIn("(*workspace.TEMP_ARG_0).to_buffer_mut()", rendered)
         self.assertNotIn("static mut", rendered)
         self.assertIn("dispatch_fn_from_library(QUERY_FN_PTR, 0)?", rendered)
         self.assertIn("])?;", rendered)
@@ -210,6 +185,16 @@ class FlowConverterTests(unittest.TestCase):
         metadata = json.loads(CONVERTER.render_metadata_json([execute]))
         self.assertEqual(metadata["schema_version"], 1)
         self.assertNotIn("commands", metadata["cmd_executes"][0])
+        self.assertEqual(
+            metadata["cmd_executes"][0]["resources"][0]["static_ident"],
+            "TEMP_ARG_0",
+        )
+
+        # The rendered Rust and the metadata must agree on the workspace name.
+        self.assertEqual(CONVERTER.dataclass_to_json(binding)["static_ident"], "TEMP_ARG_0")
+        workspace_field = CONVERTER.render_workspace_field(binding)
+        self.assertIn("TEMP_ARG_0", workspace_field)
+        self.assertIn("Aligned<AlignedType", workspace_field)
 
     def test_unresolved_dispatch_is_an_error(self):
         dispatch = CONVERTER.DispatchCall(
@@ -227,57 +212,17 @@ class FlowConverterTests(unittest.TestCase):
         with self.assertRaises(CONVERTER.StreamExtractionError):
             CONVERTER.render_command(dispatch, "")
 
-    def test_composite_constant_includes_dense_resources(self):
-        text = """
-            #weights = #util.composite<12xi8, [
-                dense_resource<model_weights> : tensor<2xf32>,
-                dense<0> : vector<4xi8>,
-            ]>
-            {-#
-              dialect_resources: {
-                builtin: {
-                  model_weights: "0x040000000000803F000000C0"
-                }
-              }
-            #-}
-        """
-
-        constants = CONVERTER.parse_composite_constants(text)
-
-        self.assertEqual(len(constants), 1)
-        blob = next(iter(constants.values()))
-        self.assertEqual(blob.size, 12)
-        self.assertEqual(blob.data, struct.pack("<ff", 1.0, -2.0) + bytes(4))
-
-    def test_structured_parser_tracks_multiple_composite_constants(self):
+    def test_parses_composite_constants_and_provenance(self):
         text = """#a = #util.composite<1xi8, [dense<1> : tensor<1xi8>]>
 #b = #util.composite<1xi8, [dense<2> : tensor<1xi8>]>
-module {
-  util.func private @constants() {
-    %a = util.buffer.constant : !util.buffer = #a
-    %b = util.buffer.constant : !util.buffer = #b
-    util.return
-  }
-}
-"""
-
-        parser = CONVERTER.StructuredStreamParser(text)
-        buffer_constants = CONVERTER.ir.get_ops_of_type(
-            parser.module, CONVERTER.util.BufferConstantOp
-        )
-
-        self.assertEqual(
-            [parser.constant_by_value[operation.result] for operation in buffer_constants],
-            ["constant_a", "constant_b"],
-        )
-
-    def test_structured_parser_tracks_dense_resource_constant(self):
-        text = """#weights = #util.composite<12xi8, [
+#weights = #util.composite<12xi8, [
   dense_resource<model_weights> : tensor<2xf32>,
   dense<0> : vector<4xi8>,
 ]>
 module {
   util.func private @constants() {
+    %a = util.buffer.constant : !util.buffer = #a
+    %b = util.buffer.constant : !util.buffer = #b
     %weights = util.buffer.constant : !util.buffer = #weights
     util.return
   }
@@ -292,13 +237,21 @@ module {
 """
 
         parser = CONVERTER.StructuredStreamParser(text)
-        operation = CONVERTER.ir.get_ops_of_type(
+        buffer_constants = CONVERTER.ir.get_ops_of_type(
             parser.module, CONVERTER.util.BufferConstantOp
-        )[0]
+        )
 
         self.assertEqual(
-            parser.constant_by_value[operation.result], "constant_weights"
+            [parser.constant_by_value[operation.result] for operation in buffer_constants],
+            ["constant_a", "constant_b", "constant_weights"],
         )
+        self.assertEqual(
+            sorted(parser.constant_blobs),
+            ["constant_a", "constant_b", "constant_weights"],
+        )
+        weights = parser.constant_blobs["constant_weights"]
+        self.assertEqual(weights.size, 12)
+        self.assertEqual(weights.data, struct.pack("<ff", 1.0, -2.0) + bytes(4))
 
     def test_constant_provenance_requires_all_cf_inputs(self):
         text = """#a = #util.composite<1xi8, [dense<1> : tensor<1xi8>]>
