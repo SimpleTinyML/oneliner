@@ -107,7 +107,6 @@ impl fmt::Display for FormatDuration {
 #[cfg(test)]
 mod tests {
     use super::*;
-    extern crate std;
 
     #[test]
     fn tracks_min_max_total_and_average() {
@@ -132,19 +131,4 @@ mod tests {
         stats.reset();
         assert_eq!(stats, LatencyStats::default());
     }
-
-#[cfg(feature = "std")]
-fn formats_durations() {
-    use std::string::ToString;
-
-    assert_eq!(FormatDuration(Duration::from_micros(5)).to_string(), "5us");
-    assert_eq!(
-        FormatDuration(Duration::from_millis(12)).to_string(),
-        "12ms"
-    );
-    assert_eq!(
-        FormatDuration(Duration::from_secs(3)).to_string(),
-        "3.000s"
-    );
-}
 }

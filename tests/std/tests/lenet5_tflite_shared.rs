@@ -22,8 +22,7 @@ fn lenet5_tflite_runs_with_shared_arena() {
     input.fill(7.0);
 
     let output = model.run(&input);
-    support::assert_metadata(
-        "lenet5_quantized.tflite (shared)",
+    support::assert_usage(
         &LeNet5TfliteShared::METADATA,
         &LeNet5TfliteShared::RESOURCE_USAGE,
         input.byte_len(),

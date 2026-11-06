@@ -3,6 +3,44 @@ name = "oneliner-std-e2e-tests"
 version = "0.0.0"
 edition = "2024"
 publish = false
+# `[[test]]` entries below are the complete target list for this package.
+# Without `autotests = false`, a new tests/*.rs file would be discovered as a
+# heavy model target that bypasses the `required-features` gate.
+autotests = false
+
+[features]
+default = []
+host-e2e = []
+
+[[test]]
+name = "abs2_owned"
+path = "tests/abs2_owned.rs"
+required-features = ["host-e2e"]
+
+[[test]]
+name = "lenet5_onnx_owned"
+path = "tests/lenet5_onnx_owned.rs"
+required-features = ["host-e2e"]
+
+[[test]]
+name = "lenet5_pytorch_owned"
+path = "tests/lenet5_pytorch_owned.rs"
+required-features = ["host-e2e"]
+
+[[test]]
+name = "lenet5_tensorflow_owned"
+path = "tests/lenet5_tensorflow_owned.rs"
+required-features = ["host-e2e"]
+
+[[test]]
+name = "lenet5_tflite_shared"
+path = "tests/lenet5_tflite_shared.rs"
+required-features = ["host-e2e"]
+
+[[test]]
+name = "mcunet_tflite_owned"
+path = "tests/mcunet_tflite_owned.rs"
+required-features = ["host-e2e"]
 
 [dependencies]
 oneliner = {

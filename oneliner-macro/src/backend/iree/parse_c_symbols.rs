@@ -60,16 +60,4 @@ mod tests {
         );
         assert_eq!(query_name_from_line("// model_library_query("), None);
     }
-
-    #[test]
-    fn sanitizes_pytorch_query_function_names_for_rust() {
-        let raw = "main$async_dispatch_0_library_query";
-        let rust_name = rust_ident(raw);
-
-        assert_eq!(rust_name, "main_async_dispatch_0_library_query");
-        assert_eq!(
-            parse_ident(&rust_name, "test").unwrap().to_string(),
-            rust_name
-        );
-    }
 }

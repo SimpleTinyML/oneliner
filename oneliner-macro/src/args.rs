@@ -175,7 +175,10 @@ mod tests {
     fn defaults_to_iree() {
         let args: AttributeArgs = vec![syn::parse_quote!("model.tflite")];
 
-        assert!(ModelArgs::parse(args).is_ok());
+        let args = ModelArgs::parse(args).unwrap();
+        assert_eq!(args.backend, BackendArg::Iree);
+        assert_eq!(args.arena, ArenaArg::Owned);
+        assert_eq!(args.format, None);
     }
 
     #[test]

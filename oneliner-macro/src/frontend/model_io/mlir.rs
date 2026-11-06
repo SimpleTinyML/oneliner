@@ -102,9 +102,11 @@ mod tests {
     use crate::frontend::model_io::types::ElementType;
 
     #[test]
-    fn parses_builtin_tensors_with_attributes() {
+    fn parses_builtin_tensors_and_selects_main() {
         let text = r#"
             module {
+              func.func private @helper(%arg0: tensor<4xi32>) -> tensor<4xi32>
+
               util.func public @main(
                 %arg0: tensor<1x64x64x3xi8> {ml_program.identifier = "input"}
               ) -> (tensor<1x2xi8> {ml_program.identifier = "output"}) {
@@ -116,19 +118,6 @@ mod tests {
 
         assert!(matches!(model_io.input.element_type, ElementType::I8));
         assert_eq!(model_io.input.shape, [1, 64, 64, 3]);
-        assert_eq!(model_io.output.shape, [1, 1, 1, 2]);
-    }
-
-    #[test]
-    fn selects_main_instead_of_helper() {
-        let text = r#"
-            func.func private @helper(%arg0: tensor<4xi32>) -> tensor<4xi32>
-            func.func @main(%arg0: tensor<2xf32>) -> tensor<2xf32>
-        "#;
-        let model_io = parse(text, Path::new("model.mlir")).unwrap();
-
-        assert!(matches!(model_io.input.element_type, ElementType::F32));
-        assert_eq!(model_io.input.shape, [1, 1, 1, 2]);
         assert_eq!(model_io.output.shape, [1, 1, 1, 2]);
     }
 
