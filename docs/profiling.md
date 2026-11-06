@@ -77,29 +77,28 @@ The numbers come from two sources:
 - **IREE flow metadata:** the model's constant (weights) and temporary (workspace) resources. Sizes are deduplicated — a blob shared by several IREE `cmd_execute` blocks is emitted once and counted once.
 - **The compiled IREE object file:** parsed section-by-section to measure the machine code and read-only data that the linker places in flash.
 
-## ModelArtifacts size fields
+## ResourceUsage size fields
 
-The same numbers are available to your program at runtime through the `ARTIFACTS` constant of the generated model type:
+The same numbers are available to your program through the `RESOURCE_USAGE` constant of the generated model type. `ResourceUsage` groups tensor sizes in `io: IOSize`, workspace usage in `ram: RAMUsage`, and flash estimates in `flash: FlashUsage`:
 
 ```rust
-use oneliner::runtime::ModelSource;
-
-let artifacts = <MyModel as ModelSource>::ARTIFACTS;
+let usage = MyModel::RESOURCE_USAGE;
+let arena_size = usage.ram.arena_size;
 ```
 
 Each size field is a byte count:
 
 | Field | Meaning |
 | --- | --- |
-| `params_size` | Model parameter/weight bytes placed in flash. |
-| `code_size` | Executable machine code of the compiled model (`.text` sections of the IREE object file), placed in flash. |
-| `rodata_size` | Read-only data embedded in the compiled object — lookup tables, library metadata, and `.ARM.exidx` unwind tables (`.rodata`, `.data.rel.ro`) — placed in flash. |
-| `total_flash_size` | Total model flash footprint: `params_size + code_size + rodata_size`. |
-| `ram_size` | Deduplicated temporary payload bytes; excludes alignment, tensors and stacks. |
-| `input_size` | Size in bytes of the model's single input tensor. |
-| `output_size` | Size in bytes of the model's single output tensor. |
+| `flash.params_size` | Model parameter/weight bytes placed in flash. |
+| `flash.code_size` | Executable machine code of the compiled model (`.text` sections of the IREE object file), placed in flash. |
+| `flash.rodata_size` | Read-only data embedded in the compiled object — lookup tables, library metadata, and `.ARM.exidx` unwind tables (`.rodata`, `.data.rel.ro`) — placed in flash. |
+| `flash.total_flash_size` | Total model flash footprint: `flash.params_size + flash.code_size + flash.rodata_size`. |
+| `ram.arena_size` | Deduplicated temporary payload bytes; excludes alignment padding, input/output tensors and stacks. |
+| `io.input_size` | Size in bytes of the model's single input tensor. |
+| `io.output_size` | Size in bytes of the model's single output tensor. |
 
-`ModelArtifacts` also carries build-related paths (`model_path`, `compile_input_path`, `object_path`, `link_path`, `ir_path`, `flow_rs_path`, `metadata_json_path`) and the `backend` name for tooling use.
+Model provenance is available separately through `MyModel::METADATA`, a `ModelMetadata` value containing the `backend` name and `model_path`, the resolved original model file or TensorFlow SavedModel directory on the build host. Both constants are public associated constants of the generated model type and require no trait import. Intermediate build artifact paths remain internal to the macro and are not part of the runtime metadata API.
 
 ## Examples
 

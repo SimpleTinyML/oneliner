@@ -1,8 +1,8 @@
 //! Oneliner Runtime building blocks for compiled models.
 //!
 //! Applications normally use these through crate `oneliner`'s re-exported facade `oneliner::runtime`, starting with 
-//! [`ModelInference`], [`Tensor`] and [`ModelSource`]. Backend integration uses
-//! the buffer, IREE dispatch and executor APIs.
+//! [`ModelInference`], [`Tensor`], [`ModelMetadata`] and [`ResourceUsage`]. Backend
+//! integration uses the buffer, IREE dispatch and executor APIs.
 //!
 #![no_std]
 
@@ -13,6 +13,7 @@ mod arena;
 mod buffer;
 mod executor;
 mod interface;
+mod metadata;
 
 #[cfg(feature = "iree-runtime")]
 mod iree;
@@ -23,9 +24,8 @@ pub use buffer::{
 };
 
 pub use executor::{DefaultExecutor, Executor, SequentialExecutor, WorkItem};
-pub use interface::{
-    Error, ModelArtifacts, ModelInference, ModelSource, Shape, Tensor, Tensor4D, TensorArray,
-};
+pub use interface::{Error, ModelInference, Shape, Tensor, Tensor4D, TensorArray};
+pub use metadata::{FlashUsage, IOSize, ModelMetadata, RAMUsage, ResourceUsage};
 #[cfg(feature = "iree-runtime")]
 pub use iree::{
     dispatch, dispatch_fn_from_library, iree_hal_executable_dispatch_state_v0_t,

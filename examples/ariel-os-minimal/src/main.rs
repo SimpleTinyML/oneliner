@@ -6,7 +6,7 @@ use ariel_os::log::{error, info};
 use ariel_os::time;
 
 use oneliner::model;
-use oneliner::runtime::{ModelInference, ModelSource};
+use oneliner::runtime::ModelInference;
 
 use static_cell::ConstStaticCell;
 
@@ -31,14 +31,14 @@ const EXPECTED: [f32; OUTPUT_LEN] = [
 #[ariel_os::thread(autostart, priority = 1, stacksize=20480)]
 // #[ariel_os::thread(autostart, priority = 1)]
 fn main() {
-    let artifacts = <Model as ModelSource>::ARTIFACTS;
+    let usage = Model::RESOURCE_USAGE;
     info!(
         "Oneliner IREE example running on {}",
         ariel_os::buildinfo::BOARD
     );
     info!(
-        "Model artifact sizes: input={} output={}",
-        artifacts.input_size, artifacts.output_size
+        "Model tensor sizes: input={} output={}",
+        usage.io.input_size, usage.io.output_size
     );
 
     let mut model = Model::new();

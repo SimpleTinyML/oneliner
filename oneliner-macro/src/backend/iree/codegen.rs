@@ -25,17 +25,14 @@ pub(super) fn expand(
     let paths = &artifacts.paths;
     let flow_rs = path_lit(&paths.flow_rs);
     let model_path = path_lit(&paths.model);
-    let compile_input_path = path_lit(&paths.compile_input);
     let object_path = path_lit(&paths.object);
-    let ir_path = path_lit(&paths.ir);
-    let metadata_json_path = path_lit(&paths.metadata_json);
     let input_size = artifacts.input.size;
     let output_size = artifacts.output.size;
     let params_size = artifacts.params_size;
     let code_size = artifacts.code_size;
     let rodata_size = artifacts.rodata_size;
     let total_flash_size = params_size + code_size + rodata_size;
-    let ram_size = artifacts.ram_size;
+    let arena_size = artifacts.arena_size;
     let execute_fns = &artifacts.execute_fns;
     let query_fn = &artifacts.query_fn;
     let query_link_name = LitStr::new(&artifacts.query_link_name, Span::call_site());
@@ -175,26 +172,28 @@ pub(super) fn expand(
         #model_constructor
         #default_impl
 
-        impl ::oneliner::runtime::ModelSource for #struct_ident {
-            /// Resolved original model path on the build host.
-            const MODEL_PATH: &'static str = #model_path;
-            /// Generated artifact paths and model-only footprint estimates.
-            const ARTIFACTS: ::oneliner::runtime::ModelArtifacts = ::oneliner::runtime::ModelArtifacts {
+        impl #struct_ident {
+            /// Model backend and original source path on the build host.
+            pub const METADATA: ::oneliner::runtime::ModelMetadata = ::oneliner::runtime::ModelMetadata {
                 backend: "iree",
                 model_path: #model_path,
-                compile_input_path: #compile_input_path,
-                object_path: #object_path,
-                link_path: #object_path,
-                ir_path: #ir_path,
-                flow_rs_path: #flow_rs,
-                metadata_json_path: #metadata_json_path,
-                input_size: #input_size,
-                output_size: #output_size,
-                params_size: #params_size,
-                code_size: #code_size,
-                rodata_size: #rodata_size,
-                total_flash_size: #total_flash_size,
-                ram_size: #ram_size,
+            };
+
+            /// Tensor byte counts and model-only footprint estimates.
+            pub const RESOURCE_USAGE: ::oneliner::runtime::ResourceUsage = ::oneliner::runtime::ResourceUsage {
+                io: ::oneliner::runtime::IOSize {
+                    input_size: #input_size,
+                    output_size: #output_size,
+                },
+                ram: ::oneliner::runtime::RAMUsage {
+                    arena_size: #arena_size,
+                },
+                flash: ::oneliner::runtime::FlashUsage {
+                    params_size: #params_size,
+                    code_size: #code_size,
+                    rodata_size: #rodata_size,
+                    total_flash_size: #total_flash_size,
+                },
             };
         }
 

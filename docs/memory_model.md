@@ -5,7 +5,7 @@ Inference needs a scratch workspace: the arena holds the model's transient data 
 - `owned` — every model instance gets an independent workspace (the **default**).
 - `shared` — all instances of a model type share one synchronized static workspace.
 
-The workspace size (`ram_size`, reported as `arena` in the build-time footprint report) is fixed at compile time by the IREE backend; the choice below decides how many copies of it exist and how they are coordinated.
+The workspace payload size (`MyModel::RESOURCE_USAGE.ram.arena_size`, reported as `arena` in the build-time footprint report) is fixed at compile time by the IREE backend. It counts deduplicated temporary resource bytes, excluding alignment padding, input/output tensors and stacks; the choice below decides how many copies of the workspace exist and how they are coordinated. The separate `MyModel::METADATA` constant describes the backend and original model path.
 
 ## owned mode
 

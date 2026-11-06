@@ -37,18 +37,25 @@ use syn::{AttributeArgs, ItemStruct, parse_macro_input};
 /// static arena. Please check [memory model](https://github.com/SimpleTinyML/oneliner/blob/main/docs/memory_model.md)
 /// for more details.
 ///
+/// # Model metadata and resource usage
+///
+/// The generated type exposes two public associated constants: `METADATA` contains
+/// the backend name and original model path, while `RESOURCE_USAGE` contains input/output
+/// tensor sizes, workspace usage and flash estimates. Both are accessible without importing a trait.
+///
 /// # Example
 ///
 /// This snippet requires an application-provided model.
 ///
 /// ```ignore (requires the application's model file and the IREE toolchain)
-/// use oneliner::{model, runtime::{ModelInference, ModelSource}};
+/// use oneliner::{model, runtime::ModelInference};
 /// #[model("models/model.tflite", arena = "shared")]
 /// struct MyModel;
 /// let mut model = MyModel::new();
 /// let input = MyModel::create_input_tensor();
 /// let output = model.run(&input);
-/// println!("{} workspace arena bytes", MyModel::ARTIFACTS.ram_size);
+/// println!("Model source: {}", MyModel::METADATA.model_path);
+/// println!("{} workspace arena bytes", MyModel::RESOURCE_USAGE.ram.arena_size);
 /// ```
 ///
 /// # Toolchain requirements

@@ -17,7 +17,7 @@ pub(super) struct FlowMetadata {
     /// Constant/weight bytes placed in flash.
     pub params_size: usize,
     /// Model RAM workspace size in bytes, excluding possible padding.
-    pub ram_size: usize,
+    pub arena_size: usize,
 }
 
 #[derive(Deserialize)]
@@ -77,14 +77,14 @@ pub(super) fn load_metadata(path: &Path) -> syn::Result<FlowMetadata> {
         .map(|size| BindingArtifact { size })
         .unwrap();
 
-    let (params_size, ram_size) = footprint_sizes(resources.iter().copied());
+    let (params_size, arena_size) = footprint_sizes(resources.iter().copied());
 
     Ok(FlowMetadata {
         execute_fns,
         input,
         output,
         params_size,
-        ram_size,
+        arena_size,
     })
 }
 
@@ -96,7 +96,7 @@ pub(super) fn load_metadata(path: &Path) -> syn::Result<FlowMetadata> {
 /// are excluded.
 fn footprint_sizes<'a>(resources: impl Iterator<Item = &'a Resource>) -> (usize, usize) {
     let mut params_size = 0usize;
-    let mut ram_size = 0usize;
+    let mut arena_size = 0usize;
     let mut seen_flash = std::collections::HashSet::new();
     let mut seen_ram = std::collections::HashSet::new();
     for resource in resources {
@@ -108,13 +108,13 @@ fn footprint_sizes<'a>(resources: impl Iterator<Item = &'a Resource>) -> (usize,
             }
             (Role::Temporary, Some(size)) => {
                 if seen_ram.insert(resource.static_ident.as_deref()) {
-                    ram_size += size;
+                    arena_size += size;
                 }
             }
             _ => {}
         }
     }
-    (params_size, ram_size)
+    (params_size, arena_size)
 }
 
 #[cfg(test)]
@@ -155,9 +155,9 @@ mod tests {
                 role: Role::Input,
             },
         ];
-        let (flash, ram) = footprint_sizes(resources.iter());
-        assert_eq!(flash, 107);
-        assert_eq!(ram, 100);
+        let (params_size, arena_size) = footprint_sizes(resources.iter());
+        assert_eq!(params_size, 107);
+        assert_eq!(arena_size, 100);
     }
 
     #[test]
