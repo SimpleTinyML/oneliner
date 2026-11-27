@@ -22,26 +22,28 @@ use syn::{AttributeArgs, ItemStruct, parse_macro_input};
 /// | --- | --- | --- |
 /// | path/to/model | Path string to Model file or Tensorflow SavedModel directory | Required |
 /// | `backend` | `"iree"` | `"iree"` |
-/// | `arena` | `"owned"`, `"shared"` | `"owned"` |
 /// | `format` | `"mlir"`, `"onnx"`, `"pytorch"`/`"pt2"`, `"tensorflow"`/`"tf"`, `"tflite"` | None, Oneliner identifies via file extension. |
 ///
 /// Relative paths resolve against the application's `Cargo.toml` directory.
-/// 
+///
 /// A TensorFlow SavedModel directory requires `format = "tensorflow"`.
 /// PyTorch input must be an exported `.pt2` program, not a `.pt`/`.pth` checkpoint.
 /// For more details, please check [model formats](https://github.com/SimpleTinyML/oneliner/blob/main/docs/model_formats.md).
 ///
-/// # Remarks on `arena`
+/// # Remarks on Workspaces
 ///
-/// `owned` gives each model instance an independent work arena. `shared` gives all instances one shared
-/// static arena. Please check [memory model](https://github.com/SimpleTinyML/oneliner/blob/main/docs/memory_model.md)
+/// `Model::new()` gives every instance its own workspace, stored inline in the
+/// model value. The generated workspace type is internal; the crate never
+/// allocates. Please check
+/// [memory model](https://github.com/SimpleTinyML/oneliner/blob/main/docs/memory_model.md)
 /// for more details.
 ///
 /// # Model metadata and resource usage
 ///
-/// The generated type exposes two public associated constants: `METADATA` contains
-/// the backend name and original model path, while `RESOURCE_USAGE` contains input/output
-/// tensor sizes, workspace usage and flash estimates. Both are accessible without importing a trait.
+/// The generated type exposes public associated constants: `METADATA` contains
+/// the backend name and original model path, and `RESOURCE_USAGE` contains
+/// input/output tensor sizes, workspace usage and flash estimates. They are
+/// accessible without importing a trait.
 ///
 /// # Example
 ///
@@ -49,13 +51,15 @@ use syn::{AttributeArgs, ItemStruct, parse_macro_input};
 ///
 /// ```ignore (requires the application's model file and the IREE toolchain)
 /// use oneliner::{model, runtime::ModelInference};
-/// #[model("models/model.tflite", arena = "shared")]
+///
+/// #[model("models/model.tflite")]
 /// struct MyModel;
+///
 /// let mut model = MyModel::new();
 /// let input = MyModel::create_input_tensor();
 /// let output = model.run(&input);
 /// println!("Model source: {}", MyModel::METADATA.model_path);
-/// println!("{} workspace arena bytes", MyModel::RESOURCE_USAGE.ram.arena_size);
+/// println!("{} workspace workspace bytes", MyModel::RESOURCE_USAGE.ram.workspace_size);
 /// ```
 ///
 /// # Toolchain requirements
@@ -70,7 +74,7 @@ pub fn model(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let expanded = args::ModelArgs::parse(attr).and_then(|args| {
         let model = frontend::prepare(&args, &input_struct)?;
-        backend::expand(args.backend, args.arena, input_struct, model)
+        backend::expand(args.backend, input_struct, model)
     });
     match expanded {
         Ok(tokens) => tokens.into(),

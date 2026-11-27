@@ -58,14 +58,14 @@ Oneliner accepts:
 - TensorFlow SavedModel v2 directories
 - MLIR accepted by IREE
 
-See [Model formats](https://github.com/SimpleTinyML/oneliner/blob/main/docs/model_formats.md) for per-format guides and [Memory model](https://github.com/SimpleTinyML/oneliner/blob/main/docs/memory_model.md) for the `owned`/`shared` arena modes.
+See [Model formats](https://github.com/SimpleTinyML/oneliner/blob/main/docs/model_formats.md) for per-format guides and [Memory model](https://github.com/SimpleTinyML/oneliner/blob/main/docs/memory_model.md) for how the model workspace is placed.
 
 ## The `#[model]` attribute
 
 The attribute takes the model path as its first positional argument, followed by optional named parameters:
 
 ```rust
-#[model("models/model.tflite", backend = "iree", arena = "shared", format = "tflite")]
+#[model("models/model.tflite", backend = "iree", format = "tflite")]
 struct MyModel;
 ```
 
@@ -73,7 +73,6 @@ struct MyModel;
 | --- | --- | --- | --- |
 | `"<path>"` (positional, required) | string | — | Model file or directory path, resolved relative to the application's `Cargo.toml`. |
 | `backend` | `"iree"` | `"iree"` | Execution backend. Only IREE is currently available. |
-| `arena` | `"owned"`, `"shared"` | `"owned"` | Workspace memory mode, see [Memory model](https://github.com/SimpleTinyML/oneliner/blob/main/docs/memory_model.md). |
 | `format` | `"mlir"`, `"onnx"`, `"pytorch"`/`"pt2"`, `"tensorflow"`/`"tf"`, `"tflite"` | auto-detected from the file extension | Explicit model format override. Required for TensorFlow SavedModel v2 directories (no extension). |
 
 The format is normally inferred from the extension (`.mlir`, `.onnx`, `.pt2`, `.tflite`); pass `format` explicitly to override it, which is mandatory for TensorFlow SavedModel directories. Duplicate or unknown options are rejected at compile time.

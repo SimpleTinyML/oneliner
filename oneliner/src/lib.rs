@@ -32,19 +32,17 @@
 //! # Features
 //! 
 //! - `ariel-os` : Use Ariel OS's multi-core executor and benchmarking utilities.
-//! - `alloc` : Enable heap-allocation for "owned" model workspace. Needs a global allocator supplied by the application.
-//! - `ndarray` : Enable ndarray views for tensors; ndarray depends on `alloc`.
+//! - `ndarray` : Enable ndarray views for tensors.
 //!
+//! The crate never allocates: `Model::new()` stores the model's workspace
+//! inline in the model value.
 
 #![no_std]
-
-#[cfg(feature = "alloc")]
-extern crate alloc;
 
 #[doc(inline)]
 pub use oneliner_macro::model;
 
-/// Tensor, arena, inference and backend interfaces used by generated models. Re-exported from crate [`oneliner_runtime`].
+/// Tensor, workspace, inference and backend interfaces used by generated models. Re-exported from crate [`oneliner_runtime`].
 pub mod runtime {
     #[doc(inline)]
     pub use oneliner_runtime::*;

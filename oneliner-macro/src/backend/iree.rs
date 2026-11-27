@@ -12,7 +12,6 @@ use std::path::PathBuf;
 use proc_macro2::TokenStream;
 use syn::Ident;
 
-use crate::args::ArenaArg;
 use crate::frontend::{Model, TensorInfo};
 
 #[derive(Debug)]
@@ -40,21 +39,17 @@ struct IreeArtifacts {
     params_size: usize,
     code_size: usize,
     rodata_size: usize,
-    arena_size: usize,
+    workspace_size: usize,
 }
 
-pub fn expand(
-    input_struct: syn::ItemStruct,
-    model: Model,
-    arena: ArenaArg,
-) -> syn::Result<TokenStream> {
+pub fn expand(input_struct: syn::ItemStruct, model: Model) -> syn::Result<TokenStream> {
     let artifacts = artifacts::build(&input_struct.ident, model)?;
 
     let params_size = artifacts.params_size;
     let code_size = artifacts.code_size;
     let rodata_size = artifacts.rodata_size;
     let total_flash_size = params_size + code_size + rodata_size;
-    let arena_size = artifacts.arena_size;
+    let workspace_size = artifacts.workspace_size;
     let input_size = artifacts.input.size;
     let output_size = artifacts.output.size;
 
@@ -71,16 +66,15 @@ pub fn expand(
         total_flash_size / 1024,
     );
     eprintln!(
-        "  RAM Usage: arena = {} B ({} KiB), input = {} B ({} KiB), output = {} B ({} KiB)",
-        arena_size,
-        arena_size / 1024,
+        "  RAM Usage: workspace = {} B ({} KiB), input = {} B ({} KiB), output = {} B ({} KiB)",
+        workspace_size,
+        workspace_size / 1024,
         input_size,
         input_size / 1024,
         output_size,
         output_size / 1024,
     );
 
-    let expanded = codegen::expand(input_struct, artifacts, arena);
-    // eprintln!("generated:\n{expanded}");
+    let expanded = codegen::expand(input_struct, artifacts);
     Ok(expanded.into())
 }

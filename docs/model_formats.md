@@ -10,7 +10,7 @@ The generated `ModelInference` API currently targets fixed-shape models with:
 
 Integer and floating-point tensor element types are inferred automatically.
 
-## PyTorch models
+## Notes on PyTorch models
 
 Oneliner accepts a PyTorch `ExportedProgram` saved with the conventional `.pt2` extension. Export the inference model with fixed example input shapes:
 
@@ -35,7 +35,7 @@ struct MyModel;
 
 `.pt` and `.pth` are checkpoint conventions rather than self-contained model formats: a checkpoint may contain only a `state_dict`, with no forward graph or input signature. Convert those checkpoints to `.pt2` before using them with Oneliner. Only load models from trusted sources because PyTorch deserialization uses pickle internally.
 
-## TensorFlow SavedModels
+## Notes on TensorFlow SavedModels
 
 Oneliner accepts TensorFlow SavedModel v2 directories. For the conventional exported `main` method and `serving_default` signature, only the format is needed:
 
@@ -46,7 +46,7 @@ struct MyModel;
 
 The model must expose a `main` method with a `serving_default` signature, and the directory must contain `saved_model.pb`. TensorFlow, `iree-tools-tf`, and `iree-base-compiler` should be pinned to mutually compatible versions.
 
-See [Memory model](memory_model.md) for the `owned`/`shared` workspace modes.
+See [Memory model](memory_model.md) for how the model workspace is placed.
 
 ## Dynamic shapes and dimensions
 

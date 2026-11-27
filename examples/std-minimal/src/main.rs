@@ -17,12 +17,12 @@ fn main() {
     let usage = Model::RESOURCE_USAGE;
     env_logger::init();
     info!(
-        "Flash usage: params={} code={} rodata={} total={} | RAM usage: arena={} input={} output={}",
+        "Flash usage: params={} code={} rodata={} total={} | RAM usage: workspace={} input={} output={}",
         usage.flash.params_size,
         usage.flash.code_size,
         usage.flash.rodata_size,
         usage.flash.total_flash_size,
-        usage.ram.arena_size,
+        usage.ram.workspace_size,
         usage.io.input_size,
         usage.io.output_size
     );

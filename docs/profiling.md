@@ -69,12 +69,13 @@ Every `#[model(...)]` build prints a memory report to stderr, e.g.:
 ```
 [oneliner-profiler] MyModel memory footprint:
   Flash Usage: params = 108080 B (105 KiB), text(code) = 97560 B (95 KiB), rodata = 460 B (0 KiB), total = 206100 B (201 KiB)
-  RAM Usage: arena = 33548 B (32 KiB), input = 3136 B (3 KiB), output = 40 B (0 KiB)
+  RAM Usage: workspace = 33548 B (32 KiB), input = 3136 B (3 KiB), output = 40 B (0 KiB)
 ```
 
 The numbers come from two sources:
 
-- **IREE flow metadata:** the model's constant (weights) and temporary (workspace) resources. Sizes are deduplicated — a blob shared by several IREE `cmd_execute` blocks is emitted once and counted once.
+- **IREE flow metadata:** the model's constant (weights) and temporary (workspace) resources.
+
 - **The compiled IREE object file:** parsed section-by-section to measure the machine code and read-only data that the linker places in flash.
 
 ## ResourceUsage size fields
@@ -83,7 +84,7 @@ The same numbers are available to your program through the `RESOURCE_USAGE` cons
 
 ```rust
 let usage = MyModel::RESOURCE_USAGE;
-let arena_size = usage.ram.arena_size;
+let workspace_size = usage.ram.workspace_size;
 ```
 
 Each size field is a byte count:
@@ -94,19 +95,18 @@ Each size field is a byte count:
 | `flash.code_size` | Executable machine code of the compiled model (`.text` sections of the IREE object file), placed in flash. |
 | `flash.rodata_size` | Read-only data embedded in the compiled object — lookup tables, library metadata, and `.ARM.exidx` unwind tables (`.rodata`, `.data.rel.ro`) — placed in flash. |
 | `flash.total_flash_size` | Total model flash footprint: `flash.params_size + flash.code_size + flash.rodata_size`. |
-| `ram.arena_size` | Deduplicated temporary payload bytes; excludes alignment padding, input/output tensors and stacks. |
+| `ram.workspace_size` | Size in bytes of the model's workspace for intermediate tensors during inference. |
 | `io.input_size` | Size in bytes of the model's single input tensor. |
 | `io.output_size` | Size in bytes of the model's single output tensor. |
-
-Model provenance is available separately through `MyModel::METADATA`, a `ModelMetadata` value containing the `backend` name and `model_path`, the resolved original model file or TensorFlow SavedModel directory on the build host. Both constants are public associated constants of the generated model type and require no trait import. Intermediate build artifact paths remain internal to the macro and are not part of the runtime metadata API.
 
 ## Examples
 
 - [`ariel-os-profiler`](../examples/ariel-os-profiler/) — latency profiling and footprint logging on `no_std` Ariel OS.
+
 - [`embassy-pico-profiler`](../examples/embassy-pico-profiler/) — the same on bare-metal RP2040 with Embassy.
 
 ## Measurement boundaries
 
 The reported object-section and resource sizes are model-only estimates before final linking. They omit linker padding, runtime/application code, allocator metadata and OS memory. Use a final linker map and stack measurements for a complete firmware budget.
 
-The timing scope includes any preparation, waiting or logging inside its closure. Put warm-up outside the measured interval when comparing steady-state runs. Statistics contain no sample history or percentiles; microsecond helpers truncate smaller units and return zero when there are no samples. A call that unwinds is not recorded. At least one timer feature is currently required even when constructing a profiler with a custom timer.
+The timing scope includes any preparation, waiting or logging inside its closure. Put warm-up outside the measured interval when comparing steady-state runs. Statistics contain no sample history or percentiles.

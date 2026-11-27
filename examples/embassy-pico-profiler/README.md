@@ -1,41 +1,34 @@
 # Oneliner + IREE + Profiler on Raspberry Pi Pico
 
-This example runs a Oneliner model on an RP2040 with Embassy and measures its inference latency with the `oneliner-profiler` crate. It is the profiler counterpart of the [`embassy-pico-minimal`](../embassy-pico-minimal/) example.
+This example runs a Oneliner model on an RP2040 with Embassy and measures its inference latency with the `oneliner-profiler` crate. It keeps the model and its workspace in static storage and is the profiler counterpart of the [`embassy-pico-minimal`](../embassy-pico-minimal/) example.
 
 ```rust
-#[model(
-    "../models/lenet5_quantized.tflite",
-    backend = "iree",
-    arena = "shared"
-)]
+use oneliner::model;
+use oneliner::runtime::ModelInference;
+use oneliner_profiler::Profiler;
+use static_cell::ConstStaticCell;
+
+#[model("../models/lenet5_quantized.tflite")]
 struct Model;
 
-let mut model = Model::new();
+static INPUT_CELL: ConstStaticCell<<Model as ModelInference>::InputTensor> =
+    ConstStaticCell::new(<Model as ModelInference>::InputTensor::new(0.0));
+static MODEL: ConstStaticCell<Model> = ConstStaticCell::new(Model::new());
+
+let mut model = MODEL.take();
+let mut input = INPUT_CELL.take();
 let mut profiler = Profiler::new();
 let output = profiler.profile(|| model.run(&input));
 ```
 
-## What This Example Shows
-
-- Cross-compiling a TFLite model into RP2040-native code
-- Running inference from an Embassy async application
-- A synchronized shared workspace to avoid per-instance model workspaces
-- Static input tensor storage to keep the large input off the task stack
-- `defmt` logging over RTT
-- Automatic flash footprint report (parameters, machine code, read-only data, and total) plus RAM workspace, printed during compilation
-- Runtime latency profiling with `Profiler`, using the built-in `EmbassyTimer` (chosen automatically as the default timer)
-
-## Active Model
+## Sample Model
 
 The example currently uses `../models/lenet5_quantized.tflite`:
 
 - input: `Tensor<f32, 1, 28, 28, 1>`
 - output: `Tensor<f32, 1, 1, 1, 10>`
 - input data: every element is filled with `7.0`
-- memory mode: `shared`
-- input storage: a `ConstStaticCell`
 
-`EXPECTED` is currently a ten-element zero-filled placeholder. Replace it with reference output for your validation data before treating the comparison as a correctness test.
 
 ## Hardware and Tools
 
@@ -71,33 +64,15 @@ The configured Cargo runner uses:
 probe-rs run --chip RP2040
 ```
 
-## Expected Behavior
-
-The application initializes the RP2040, reports model artifact sizes (input, output, parameters, machine code, read-only data, total flash, RAM workspace), fills the static input tensor, runs inference inside a profiled scope, and reports the latency statistics over RTT. `LatencyStats` implements `defmt::Format`, so the profiler statistics are logged directly (`samples=... avg_us=... min_us=... max_us=...`).
-
-It also prints expected-versus-actual diagnostics. The bundled zero-filled `EXPECTED` array is a placeholder, so use output captured from trusted reference inference before evaluating model correctness.
-
 ## Timer Selection
 
 `Profiler::new()` picks the default timer automatically. In this example the `embassy` feature is enabled and `std` is disabled, so the profiler uses the `EmbassyTimer`. To supply a custom clock, construct a profiler with `Profiler::with_timer(my_timer)`.
 
-## Why Shared Storage?
+## Why Static Model and Input Storage?
 
-The LeNet5 input and IREE workspace are significant on an RP2040 with 264 KiB of RAM. This example uses two complementary choices:
+The LeNet5 input tensor and the IREE workspace are significant on an RP2040 with 264 KiB of RAM. This example keeps both out of the async task's stack:
 
-- `arena = "shared"` places one model workspace in static storage;
-- `ConstStaticCell` places the input tensor in static storage.
+- `ConstStaticCell<Model>` places the whole model, including its inline workspace, in static storage; `Model::new()` is a const function, so it can build the initializer.
+- `ConstStaticCell` also places the input tensor in static storage.
 
-These choices reduce task-stack pressure. They also mean that access must remain exclusive: a shared model arena cannot perform concurrent inference for the same model type.
-
-## Switching Models
-
-When replacing the bundled model:
-
-1. update the path in `#[model(...)]`;
-2. update the initial value used by `ConstStaticCell` to match the new input element type;
-3. replace the input preparation and `EXPECTED` data;
-4. check the generated artifact sizes and the board's RAM/flash limits;
-5. adjust `memory.x` only if the board memory map is different.
-
-Validate a new model with the [desktop example](../std-minimal/) before compiling it for RP2040.
+Both are zero-initialized, so they land in `.bss`: they consume RAM but no flash. This example is single-threaded. If another task or an interrupt also runs inference, give each its own `Model` instance, or share one instance only behind a lock or critical section (see the [memory model](../../docs/memory_model.md)).

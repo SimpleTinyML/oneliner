@@ -505,8 +505,6 @@ name = "oneliner-runtime"
 version = "0.2.0"
 dependencies = [
  "aligned",
- "ariel-os",
- "critical-section",
  "log",
  "ndarray",
  "oneliner-ariel-os-executor",
@@ -519,7 +517,6 @@ dependencies = [
 name = "oneliner-std-e2e-tests"
 version = "0.0.0"
 dependencies = [
- "critical-section",
  "oneliner",
  "oneliner-profiler",
 ]

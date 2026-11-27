@@ -1,7 +1,7 @@
 """Manual reference check for the MCUNet TFLite golden output.
 
 This script is not part of the automated test suite. The E2E stress test
-(`tests/std/tests/mcunet_tflite_owned.rs`) expects `[4, -5]` for an all-7 int8
+(`tests/std/tests/mcunet_tflite.rs`) expects `[4, -5]` for an all-7 int8
 input. That value matches the TFLite *reference kernels*; the XNNPACK delegate
 rounds some fixed-point ops differently and prints `[5, -5]` on the same input,
 so this script pins `BUILTIN_REF` to keep the reference reproducible.

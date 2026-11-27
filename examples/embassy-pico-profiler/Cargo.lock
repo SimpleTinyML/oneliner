@@ -1116,7 +1116,6 @@ version = "0.1.0"
 dependencies = [
  "defmt",
  "embassy-time",
- "oneliner-runtime",
 ]
 
 [[package]]
@@ -1124,7 +1123,6 @@ name = "oneliner-runtime"
 version = "0.2.0"
 dependencies = [
  "aligned",
- "critical-section",
  "log",
  "oneliner-executor",
  "oneliner-iree-abi",

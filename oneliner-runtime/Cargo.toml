@@ -18,15 +18,12 @@ workspace = true
 
 [features]
 default = ["iree-runtime"]
-alloc = []
 iree-runtime = []
-ariel-os = ["dep:ariel-os", "dep:oneliner-ariel-os-executor"]
+ariel-os = ["dep:oneliner-ariel-os-executor"]
 ndarray = ["dep:ndarray"]
 
 [dependencies]
 aligned.workspace = true
-ariel-os = { workspace = true, optional = true }
-critical-section.workspace = true
 log.workspace = true
 ndarray = { workspace = true, optional = true }
 oneliner-ariel-os-executor = { workspace = true, optional = true, features = ["enabled"] }
@@ -35,4 +32,4 @@ oneliner-iree-abi.workspace = true
 portable-atomic.workspace = true
 
 [package.metadata.docs.rs]
-features = ["alloc", "ndarray"]
+features = ["ndarray"]

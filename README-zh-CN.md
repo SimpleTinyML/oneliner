@@ -59,14 +59,14 @@ Oneliner 支持：
 - TensorFlow SavedModel v2 目录
 - IREE 接受的 MLIR
 
-各格式的使用指南详见[模型格式说明](https://github.com/SimpleTinyML/oneliner/blob/main/docs/model_formats.md)，`owned`/`shared` 工作区模式详见[内存模型](https://github.com/SimpleTinyML/oneliner/blob/main/docs/memory_model.md)。
+各格式的使用指南详见[模型格式说明](https://github.com/SimpleTinyML/oneliner/blob/main/docs/model_formats.md)，工作区的存储方式详见[内存模型](https://github.com/SimpleTinyML/oneliner/blob/main/docs/memory_model.md)。
 
 ## `#[model]` 属性参数
 
 属性第一个位置参数是模型路径，其后跟可选命名参数：
 
 ```rust
-#[model("models/model.tflite", backend = "iree", arena = "shared", format = "tflite")]
+#[model("models/model.tflite", backend = "iree", format = "tflite")]
 struct MyModel;
 ```
 
@@ -74,7 +74,6 @@ struct MyModel;
 | --- | --- | --- | --- |
 | `"<路径>"`（位置参数，必填） | 字符串 | — | 模型文件或目录路径，相对于应用的 `Cargo.toml` 解析。 |
 | `backend` | `"iree"` | `"iree"` | 执行后端，目前仅支持 IREE。 |
-| `arena` | `"owned"`、`"shared"` | `"owned"` | 工作区内存模式，详见[内存模型](https://github.com/SimpleTinyML/oneliner/blob/main/docs/memory_model.md)。 |
 | `format` | `"mlir"`、`"onnx"`、`"pytorch"`/`"pt2"`、`"tensorflow"`/`"tf"`、`"tflite"` | 按文件扩展名自动推断 | 显式指定模型格式。TensorFlow SavedModel v2 目录（无扩展名）必须显式指定。 |
 
 格式通常按扩展名（`.mlir`、`.onnx`、`.pt2`、`.tflite`）自动推断；需要覆盖时用 `format` 显式指定，TensorFlow SavedModel 目录必须指定。重复或未知选项会在编译期报错。
