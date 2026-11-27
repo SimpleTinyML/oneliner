@@ -12,7 +12,6 @@ use static_cell::ConstStaticCell;
 
 // #[model(
 //     "../models/mcunet-10fps_vww.tflite",
-//     arena = "shared"
 // )]
 // struct Model;
 // const INPUT_LEN: usize = 64 * 64 * 3;
