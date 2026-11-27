@@ -6,10 +6,9 @@ use oneliner::runtime::ModelInference;
 #[model(
     "../../examples/models/lenet5_tensorflow",
     backend = "iree",
-    arena = "owned",
     format = "tensorflow"
 )]
-struct LeNet5TensorflowOwned;
+struct LeNet5Tensorflow;
 
 const EXPECTED: [f32; 10] = [
     0.031603746,
@@ -25,9 +24,9 @@ const EXPECTED: [f32; 10] = [
 ];
 
 #[test]
-fn lenet5_tensorflow_runs_with_owned_arena() {
-    let mut model = LeNet5TensorflowOwned::new();
-    let mut input = LeNet5TensorflowOwned::create_input_tensor();
+fn lenet5_tensorflow_runs() {
+    let mut model = LeNet5Tensorflow::new();
+    let mut input = LeNet5Tensorflow::create_input_tensor();
     input.fill(1.0);
 
     let output = model.run(&input);

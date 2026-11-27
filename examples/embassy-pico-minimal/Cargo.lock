@@ -1100,7 +1100,6 @@ name = "oneliner-runtime"
 version = "0.2.0"
 dependencies = [
  "aligned",
- "critical-section",
  "log",
  "oneliner-executor",
  "oneliner-iree-abi",

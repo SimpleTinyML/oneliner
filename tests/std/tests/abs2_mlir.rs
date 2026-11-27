@@ -4,14 +4,14 @@ use oneliner::model;
 use oneliner::runtime::ModelInference;
 use oneliner_profiler::Profiler;
 
-#[model("../../examples/models/abs2.mlir", backend = "iree", arena = "owned")]
-struct Abs2Owned;
+#[model("../../examples/models/abs2.mlir", backend = "iree")]
+struct Abs2Mlir;
 
 #[test]
-fn abs2_mlir_runs_with_owned_arena() {
-    let mut model = Abs2Owned::new();
+fn abs2_mlir_runs() {
+    let mut model = Abs2Mlir::new();
     let mut profiler = Profiler::new();
-    let mut input = Abs2Owned::create_input_tensor();
+    let mut input = Abs2Mlir::create_input_tensor();
     input.as_slice_mut().copy_from_slice(&[-2.5, 3.25]);
 
     let output = profiler.profile(|| model.run(&input));

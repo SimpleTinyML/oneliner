@@ -10,12 +10,17 @@ use oneliner::runtime::ModelInference;
 use oneliner_profiler::Profiler;
 use static_cell::ConstStaticCell;
 
-#[model("../models/lenet5_quantized.tflite", arena = "shared")]
+#[model("../models/lenet5_quantized.tflite")]
 struct Model;
 const INPUT_LEN: usize = 28 * 28 * 1;
 const OUTPUT_LEN: usize = 10;
-const EXPECTED: [f32; OUTPUT_LEN] = [0.0; OUTPUT_LEN];
+const EXPECTED: [f32; OUTPUT_LEN] = [
+    0.11666615, 0.11666615, 0.13124943, 0.68541366, 0.0, 0.36458173, 0.0, 0.0, 1.2104113,
+    0.16041596,
+];
+
 static INPUT_CELL: ConstStaticCell<<Model as ModelInference>::InputTensor> = ConstStaticCell::new(<Model as ModelInference>::InputTensor::new(0.0));
+static MODEL: ConstStaticCell<Model> = ConstStaticCell::new(Model::new());
 
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
@@ -33,7 +38,7 @@ async fn main(_spawner: Spawner) {
         usage.io.output_size
     );
 
-    let mut model = Model::new();
+    let mut model = MODEL.take();
     // let mut input = Model::create_input_tensor();
     let mut input = INPUT_CELL.take();
     input.fill(7.0);

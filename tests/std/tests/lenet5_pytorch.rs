@@ -3,12 +3,8 @@ mod support;
 use oneliner::model;
 use oneliner::runtime::ModelInference;
 
-#[model(
-    "../../examples/models/lenet5_pytorch.pt2",
-    backend = "iree",
-    arena = "owned"
-)]
-struct LeNet5PytorchOwned;
+#[model("../../examples/models/lenet5_pytorch.pt2", backend = "iree")]
+struct LeNet5Pytorch;
 
 const EXPECTED: [f32; 10] = [
     0.028477922,
@@ -24,9 +20,9 @@ const EXPECTED: [f32; 10] = [
 ];
 
 #[test]
-fn lenet5_pytorch_runs_with_owned_arena() {
-    let mut model = LeNet5PytorchOwned::new();
-    let mut input = LeNet5PytorchOwned::create_input_tensor();
+fn lenet5_pytorch_runs() {
+    let mut model = LeNet5Pytorch::new();
+    let mut input = LeNet5Pytorch::create_input_tensor();
     input.fill(1.0);
 
     let output = model.run(&input);

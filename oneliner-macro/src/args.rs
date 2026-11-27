@@ -6,19 +6,12 @@ use syn::{AttributeArgs, Lit, LitStr, Meta, NestedMeta};
 pub struct ModelArgs {
     pub model_path: LitStr,
     pub backend: BackendArg,
-    pub arena: ArenaArg,
     pub format: Option<ModelFormat>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BackendArg {
     Iree,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ArenaArg {
-    Owned,
-    Shared,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -31,7 +24,7 @@ pub enum ModelFormat {
 }
 
 impl ModelArgs {
-    /// Parses `#[model("path", backend = "...", arena = "...", ...)]` arguments.
+    /// Parses `#[model("path", backend = "...", ...)]` arguments.
     ///
     /// Input: `syn::AttributeArgs` from the procedural macro entry point.
     /// Output: model path literal, backend selector, and backend options.
@@ -49,7 +42,6 @@ impl ModelArgs {
         };
 
         let mut backend = None;
-        let mut arena = None;
         let mut format = None;
         for arg in args {
             match arg {
@@ -58,12 +50,6 @@ impl ModelArgs {
                         return Err(syn::Error::new(meta.span(), "duplicate backend option"));
                     }
                     backend = Some(parse_backend(meta.lit)?);
-                }
-                NestedMeta::Meta(Meta::NameValue(meta)) if meta.path.is_ident("arena") => {
-                    if arena.is_some() {
-                        return Err(syn::Error::new(meta.span(), "duplicate arena option"));
-                    }
-                    arena = Some(parse_arena(meta.lit)?);
                 }
                 NestedMeta::Meta(Meta::NameValue(meta)) if meta.path.is_ident("format") => {
                     if format.is_some() {
@@ -74,7 +60,7 @@ impl ModelArgs {
                 other => {
                     return Err(syn::Error::new(
                         other.span(),
-                        "unknown #[model] option; expected backend, arena, or format",
+                        "unknown #[model] option; expected backend or format",
                     ));
                 }
             }
@@ -83,7 +69,6 @@ impl ModelArgs {
         Ok(Self {
             model_path,
             backend: backend.unwrap_or(BackendArg::Iree),
-            arena: arena.unwrap_or(ArenaArg::Owned),
             format,
         })
     }
@@ -135,27 +120,6 @@ fn parse_backend(lit: Lit) -> syn::Result<BackendArg> {
     }
 }
 
-fn parse_arena(lit: Lit) -> syn::Result<ArenaArg> {
-    let value = match lit {
-        Lit::Str(value) => value,
-        other => {
-            return Err(syn::Error::new(
-                other.span(),
-                "arena must be a string literal, for example arena = \"shared\"",
-            ));
-        }
-    };
-
-    match value.value().trim().to_ascii_lowercase().as_str() {
-        "owned" => Ok(ArenaArg::Owned),
-        "shared" => Ok(ArenaArg::Shared),
-        other => Err(syn::Error::new(
-            value.span(),
-            format!("unknown arena '{other}', expected 'owned' or 'shared'"),
-        )),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -177,7 +141,6 @@ mod tests {
 
         let args = ModelArgs::parse(args).unwrap();
         assert_eq!(args.backend, BackendArg::Iree);
-        assert_eq!(args.arena, ArenaArg::Owned);
         assert_eq!(args.format, None);
     }
 

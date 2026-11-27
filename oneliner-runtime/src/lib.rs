@@ -1,15 +1,11 @@
 //! Oneliner Runtime building blocks for compiled models.
 //!
-//! Applications normally use these through crate `oneliner`'s re-exported facade `oneliner::runtime`, starting with 
+//! Applications normally use these through crate `oneliner`'s re-exported facade `oneliner::runtime`, starting with
 //! [`ModelInference`], [`Tensor`], [`ModelMetadata`] and [`ResourceUsage`]. Backend
 //! integration uses the buffer, IREE dispatch and executor APIs.
 //!
 #![no_std]
 
-#[cfg(feature = "alloc")]
-extern crate alloc;
-
-mod arena;
 mod buffer;
 mod executor;
 mod interface;
@@ -38,5 +34,3 @@ pub use iree::{
 pub use aligned::{Aligned, A16, A2, A32, A4, A64};
 /// 64-byte alignment used by internal storage of buffer and tensor.
 pub type AlignedType = A64;
-
-pub use arena::{ArenaStorage, OwnedArena, SharedArena};

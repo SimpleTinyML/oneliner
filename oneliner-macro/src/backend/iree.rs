@@ -12,7 +12,6 @@ use std::path::PathBuf;
 use proc_macro2::TokenStream;
 use syn::Ident;
 
-use crate::args::ArenaArg;
 use crate::frontend::{Model, TensorInfo};
 
 #[derive(Debug)]
@@ -43,11 +42,7 @@ struct IreeArtifacts {
     arena_size: usize,
 }
 
-pub fn expand(
-    input_struct: syn::ItemStruct,
-    model: Model,
-    arena: ArenaArg,
-) -> syn::Result<TokenStream> {
+pub fn expand(input_struct: syn::ItemStruct, model: Model) -> syn::Result<TokenStream> {
     let artifacts = artifacts::build(&input_struct.ident, model)?;
 
     let params_size = artifacts.params_size;
@@ -80,7 +75,6 @@ pub fn expand(
         output_size / 1024,
     );
 
-    let expanded = codegen::expand(input_struct, artifacts, arena);
-    // eprintln!("generated:\n{expanded}");
+    let expanded = codegen::expand(input_struct, artifacts);
     Ok(expanded.into())
 }
