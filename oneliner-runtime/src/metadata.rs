@@ -45,8 +45,8 @@ pub struct RAMUsage {
     /// Deduplicated temporary resource bytes for one workspace.
     ///
     /// Excludes alignment padding, input/output tensors, stack usage and
-    /// allocator overhead; this is not the complete arena allocation size.
-    pub arena_size: usize,
+    /// allocator overhead; this is not the complete workspace allocation size.
+    pub workspace_size: usize,
 }
 
 /// Model-only flash footprint estimate in bytes before final linking.

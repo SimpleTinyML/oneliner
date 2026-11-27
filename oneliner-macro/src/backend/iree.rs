@@ -39,7 +39,7 @@ struct IreeArtifacts {
     params_size: usize,
     code_size: usize,
     rodata_size: usize,
-    arena_size: usize,
+    workspace_size: usize,
 }
 
 pub fn expand(input_struct: syn::ItemStruct, model: Model) -> syn::Result<TokenStream> {
@@ -49,7 +49,7 @@ pub fn expand(input_struct: syn::ItemStruct, model: Model) -> syn::Result<TokenS
     let code_size = artifacts.code_size;
     let rodata_size = artifacts.rodata_size;
     let total_flash_size = params_size + code_size + rodata_size;
-    let arena_size = artifacts.arena_size;
+    let workspace_size = artifacts.workspace_size;
     let input_size = artifacts.input.size;
     let output_size = artifacts.output.size;
 
@@ -66,9 +66,9 @@ pub fn expand(input_struct: syn::ItemStruct, model: Model) -> syn::Result<TokenS
         total_flash_size / 1024,
     );
     eprintln!(
-        "  RAM Usage: arena = {} B ({} KiB), input = {} B ({} KiB), output = {} B ({} KiB)",
-        arena_size,
-        arena_size / 1024,
+        "  RAM Usage: workspace = {} B ({} KiB), input = {} B ({} KiB), output = {} B ({} KiB)",
+        workspace_size,
+        workspace_size / 1024,
         input_size,
         input_size / 1024,
         output_size,

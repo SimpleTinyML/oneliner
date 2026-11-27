@@ -69,7 +69,7 @@ Every `#[model(...)]` build prints a memory report to stderr, e.g.:
 ```
 [oneliner-profiler] MyModel memory footprint:
   Flash Usage: params = 108080 B (105 KiB), text(code) = 97560 B (95 KiB), rodata = 460 B (0 KiB), total = 206100 B (201 KiB)
-  RAM Usage: arena = 33548 B (32 KiB), input = 3136 B (3 KiB), output = 40 B (0 KiB)
+  RAM Usage: workspace = 33548 B (32 KiB), input = 3136 B (3 KiB), output = 40 B (0 KiB)
 ```
 
 The numbers come from two sources:
@@ -84,7 +84,7 @@ The same numbers are available to your program through the `RESOURCE_USAGE` cons
 
 ```rust
 let usage = MyModel::RESOURCE_USAGE;
-let arena_size = usage.ram.arena_size;
+let workspace_size = usage.ram.workspace_size;
 ```
 
 Each size field is a byte count:
@@ -95,7 +95,7 @@ Each size field is a byte count:
 | `flash.code_size` | Executable machine code of the compiled model (`.text` sections of the IREE object file), placed in flash. |
 | `flash.rodata_size` | Read-only data embedded in the compiled object — lookup tables, library metadata, and `.ARM.exidx` unwind tables (`.rodata`, `.data.rel.ro`) — placed in flash. |
 | `flash.total_flash_size` | Total model flash footprint: `flash.params_size + flash.code_size + flash.rodata_size`. |
-| `ram.arena_size` | Size in bytes of the model's workspace for intermediate tensors during inference. |
+| `ram.workspace_size` | Size in bytes of the model's workspace for intermediate tensors during inference. |
 | `io.input_size` | Size in bytes of the model's single input tensor. |
 | `io.output_size` | Size in bytes of the model's single output tensor. |
 

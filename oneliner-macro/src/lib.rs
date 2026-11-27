@@ -59,7 +59,7 @@ use syn::{AttributeArgs, ItemStruct, parse_macro_input};
 /// let input = MyModel::create_input_tensor();
 /// let output = model.run(&input);
 /// println!("Model source: {}", MyModel::METADATA.model_path);
-/// println!("{} workspace arena bytes", MyModel::RESOURCE_USAGE.ram.arena_size);
+/// println!("{} workspace workspace bytes", MyModel::RESOURCE_USAGE.ram.workspace_size);
 /// ```
 ///
 /// # Toolchain requirements

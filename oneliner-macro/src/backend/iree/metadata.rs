@@ -17,7 +17,7 @@ pub(super) struct FlowMetadata {
     /// Constant/weight bytes placed in flash.
     pub params_size: usize,
     /// Model RAM workspace size in bytes, excluding possible padding.
-    pub arena_size: usize,
+    pub workspace_size: usize,
 }
 
 #[derive(Deserialize)]
@@ -77,14 +77,14 @@ pub(super) fn load_metadata(path: &Path) -> syn::Result<FlowMetadata> {
         .map(|size| BindingArtifact { size })
         .unwrap();
 
-    let (params_size, arena_size) = footprint_sizes(resources.iter().copied());
+    let (params_size, workspace_size) = footprint_sizes(resources.iter().copied());
 
     Ok(FlowMetadata {
         execute_fns,
         input,
         output,
         params_size,
-        arena_size,
+        workspace_size,
     })
 }
 
@@ -96,7 +96,7 @@ pub(super) fn load_metadata(path: &Path) -> syn::Result<FlowMetadata> {
 /// are excluded.
 fn footprint_sizes<'a>(resources: impl Iterator<Item = &'a Resource>) -> (usize, usize) {
     let mut params_size = 0usize;
-    let mut arena_size = 0usize;
+    let mut workspace_size = 0usize;
     let mut seen_flash = std::collections::HashSet::new();
     let mut seen_ram = std::collections::HashSet::new();
     for resource in resources {
@@ -108,13 +108,13 @@ fn footprint_sizes<'a>(resources: impl Iterator<Item = &'a Resource>) -> (usize,
             }
             (Role::Temporary, Some(size)) => {
                 if seen_ram.insert(resource.static_ident.as_deref()) {
-                    arena_size += size;
+                    workspace_size += size;
                 }
             }
             _ => {}
         }
     }
-    (params_size, arena_size)
+    (params_size, workspace_size)
 }
 
 #[cfg(test)]
@@ -150,8 +150,8 @@ mod tests {
         assert_eq!(resources[3].role, Role::Temporary);
         assert_eq!(resources[5].role, Role::Input);
 
-        let (params_size, arena_size) = footprint_sizes(resources.into_iter());
+        let (params_size, workspace_size) = footprint_sizes(resources.into_iter());
         assert_eq!(params_size, 107);
-        assert_eq!(arena_size, 100);
+        assert_eq!(workspace_size, 100);
     }
 }

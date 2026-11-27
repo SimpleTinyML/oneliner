@@ -55,4 +55,4 @@ The workspace belongs to the model instance, so different instances can be used 
 - The [Ariel OS examples](../examples/ariel-os-minimal/) use `Model::new()` and run inference from an RTOS thread.
 - The [desktop example](../examples/std-minimal/) is the fastest place to check the toolchain before moving to an embedded target.
 
-See [Profiling and footprint reporting](profiling.md) for how `arena_size` is reported, and [Benchmark](benchmark.md) for measured workspace payloads.
+See [Profiling and footprint reporting](profiling.md) for how `workspace_size` is reported, and [Benchmark](benchmark.md) for measured workspace payloads.

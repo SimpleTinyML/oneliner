@@ -31,7 +31,7 @@ pub(super) fn expand(input_struct: ItemStruct, artifacts: IreeArtifacts) -> Toke
     let code_size = artifacts.code_size;
     let rodata_size = artifacts.rodata_size;
     let total_flash_size = params_size + code_size + rodata_size;
-    let arena_size = artifacts.arena_size;
+    let workspace_size = artifacts.workspace_size;
     let execute_fns = &artifacts.execute_fns;
     let query_fn = &artifacts.query_fn;
     let query_link_name = LitStr::new(&artifacts.query_link_name, Span::call_site());
@@ -182,7 +182,7 @@ pub(super) fn expand(input_struct: ItemStruct, artifacts: IreeArtifacts) -> Toke
                     output_size: #output_size,
                 },
                 ram: ::oneliner::runtime::RAMUsage {
-                    arena_size: #arena_size,
+                    workspace_size: #workspace_size,
                 },
                 flash: ::oneliner::runtime::FlashUsage {
                     params_size: #params_size,

@@ -26,7 +26,7 @@ Measured with `oneliner-profiler` under Ariel OS. Latency is the mean wall-clock
 
 ## Footprint
 
-From the `Model artifact sizes` report (bytes): input/output tensor sizes, parameter bytes placed in flash (weights/constants) and the RAM block for workspace (`arena_size`). The measurement excludes alignment padding, so the in-memory workspace stored in the model value can be slightly larger than the number listed here.
+From the `Model artifact sizes` report (bytes): input/output tensor sizes, parameter bytes placed in flash (weights/constants) and the RAM block for workspace (`workspace_size`). The measurement excludes alignment padding, so the in-memory workspace stored in the model value can be slightly larger than the number listed here.
 
 | Model | Input | Output | Params | RAM |
 | --- | --- | --- | --- | --- |
